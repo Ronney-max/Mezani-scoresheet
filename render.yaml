@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: mezani-scoresheet
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data/mezani
+    disk:
+      name: scoresheet-data
+      mountPath: /var/data
+      sizeGB: 1
