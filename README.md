@@ -24,7 +24,8 @@ npm start
 
 The Node server serves both the API and the compiled React application. Set
 `PORT` to choose its listening port and `DATA_DIR` to select the persistent
-scoresheet storage directory.
+scoresheet storage directory. Completed scoresheets are also submitted to the
+Formspree endpoint configured through `FORMSPREE_ENDPOINT`.
 
 ## Render deployment
 

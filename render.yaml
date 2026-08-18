@@ -12,6 +12,8 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data/mezani
+      - key: FORMSPREE_ENDPOINT
+        value: https://formspree.io/f/myegyagd
     disk:
       name: scoresheet-data
       mountPath: /var/data

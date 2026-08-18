@@ -9,6 +9,7 @@ const port = process.env.PORT || 4000;
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const scoresFile = path.join(dataDir, 'scores.json');
+const formspreeEndpoint = process.env.FORMSPREE_ENDPOINT || 'https://formspree.io/f/myegyagd';
 
 const competitors = [
   'Jackline Mwangi', 'Ryan Kagombe', "Ndung'u Agnes", 'Peter Njuguna',
@@ -69,6 +70,44 @@ app.post('/api/scores', async (req, res, next) => {
       comments: comments?.trim() || '', entries: normalized,
       createdAt: new Date().toISOString(),
     };
+
+    const formspreePayload = {
+      _subject: `Mezani scores - ${record.judgeName} - ${record.date}`,
+      competition: 'The Best of Mezani - Barista Competition',
+      judgeName: record.judgeName,
+      date: record.date,
+      round: record.round || 'Unspecified session',
+      sensoryMaximum: record.sensoryMax,
+      technicalMaximum: record.technicalMax,
+      combinedMaximum: record.sensoryMax + record.technicalMax,
+      comments: record.comments || 'No comments provided',
+      submittedAt: record.createdAt,
+      scores: competitors.map((competitor) => {
+        const entry = normalized.find((item) => item.competitorId === competitor.id);
+        const total = entry.sensory + entry.technical;
+        return {
+          number: competitor.id,
+          competitor: competitor.name,
+          sensory: entry.sensory,
+          technical: entry.technical,
+          total,
+          percentage: Number(((total / (record.sensoryMax + record.technicalMax)) * 100).toFixed(1)),
+        };
+      }),
+    };
+
+    const formspreeResponse = await fetch(formspreeEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(formspreePayload),
+    });
+    if (!formspreeResponse.ok) {
+      const failure = await formspreeResponse.json().catch(() => ({}));
+      return res.status(502).json({
+        message: failure.errors?.[0]?.message || 'Formspree could not store this scoresheet. Please try again.',
+      });
+    }
+
     const scores = await readScores();
     scores.unshift(record);
     await writeScores(scores);

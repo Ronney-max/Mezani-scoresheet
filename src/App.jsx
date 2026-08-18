@@ -71,7 +71,7 @@ export default function App() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
       setSaved((current) => [result, ...current]);
-      setStatus({ type: 'success', message: 'Scoresheet saved successfully.' });
+      setStatus({ type: 'success', message: "Scoresheet submitted to Wesley's Formspree storage and saved successfully." });
     } catch (error) {
       setStatus({ type: 'error', message: error.message || 'Unable to save scoresheet.' });
     } finally { setSaving(false); }
