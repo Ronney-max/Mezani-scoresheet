@@ -28,6 +28,12 @@ function formatPercent(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : '-';
 }
 
+async function requestJson(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+  return response.json();
+}
+
 export default function App() {
   const [competitors, setCompetitors] = useState([]);
   const [meta, setMeta] = useState(emptyMeta);
@@ -39,13 +45,14 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/competitors').then((res) => res.json()),
-      fetch('/api/scores').then((res) => res.json()),
+      requestJson('/api/competitors'),
+      requestJson('/api/scores'),
     ]).then(([people, history]) => {
+      if (!Array.isArray(people)) throw new Error('Competitor data is invalid.');
       setCompetitors(people);
-      setSaved(history);
+      setSaved(Array.isArray(history) ? history : []);
       setScores(Object.fromEntries(people.map((person) => [person.id, { sensory: emptySensory(), technical: emptyTechnical() }])));
-    }).catch(() => setStatus({ type: 'error', message: 'Unable to connect to the scoring server.' }));
+    }).catch((error) => setStatus({ type: 'error', message: error.message || 'Unable to connect to the scoring server.' }));
   }, []);
 
   const combinedMax = Number(meta.sensoryMax || 0) + Number(meta.technicalMax || 0);
@@ -54,7 +61,7 @@ export default function App() {
     const sensory = sensorySections.reduce((sum, section) => sum + Number(row.sensory?.[section.key] || 0), 0);
     const technical = technicalSections.reduce((sum, section) => sum + Number(row.technical?.[section.key] || 0), 0);
     const total = sensory + technical;
-    return { ...person, sensory: row.sensory, technical, total, percentage: combinedMax ? total / combinedMax * 100 : 0 };
+    return { ...person, sensory, technical, total, percentage: combinedMax ? total / combinedMax * 100 : 0 };
   }).sort((a, b) => b.total - a.total), [competitors, scores, combinedMax]);
 
   const completed = competitors.filter((person) => sensorySections.every((section) => scores[person.id]?.sensory?.[section.key] !== '') && technicalSections.every((section) => scores[person.id]?.technical?.[section.key] !== '')).length;

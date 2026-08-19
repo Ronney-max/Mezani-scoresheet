@@ -223,12 +223,10 @@ if (process.env.NODE_ENV === 'production') {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      if (filePath.endsWith('index.html')) res.setHeader('Clear-Site-Data', '"cache"');
     },
   }));
   app.get(/.*/, (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Clear-Site-Data', '"cache"');
     res.sendFile(path.join(root, 'dist', 'index.html'));
   });
 }
