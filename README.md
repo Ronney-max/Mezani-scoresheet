@@ -22,9 +22,9 @@ npm run dev
 ```
 
 The frontend runs at `http://localhost:5173`. `VITE_API_URL` identifies the
-separately running backend. For Netlify, create a site from this repository and
-set **Base directory** to `frontend`. Netlify will then use
-`frontend/netlify.toml` automatically.
+separately running backend. The root `netlify.toml` explicitly sets the Netlify
+base directory to `frontend`, so importing the repository requires no manual
+build-directory configuration.
 
 ## Backend (Node / Render)
 
