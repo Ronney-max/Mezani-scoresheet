@@ -184,16 +184,14 @@ export default function App() {
             </table>
           </div>
 
-          <div className="section-heading comments-heading">
-            <div><span className="section-number">03</span><h2>Notes & submission</h2></div>
+          <div className="table-footer no-print">
+            {status.message && <div className={`notice ${status.type}`} role="status">{status.message}</div>}
           </div>
-          <label className="comments-label">General comments<textarea name="comments" value={meta.comments} onChange={updateMeta} rows="4" placeholder="Add observations, decisions, or notes for the head judge..." /></label>
-          {status.message && <div className={`notice ${status.type}`} role="status">{status.message}</div>}
-          <div className="actions">
+          <div className="actions no-print">
             <button type="button" className="button ghost no-print" onClick={resetForm}>Clear sheet</button>
             <button type="button" className="button secondary no-print" onClick={() => window.print()}>Print / PDF</button>
-            <div className="signature print-only">Judge's signature: __________________________________</div>
           </div>
+          <div className="signature print-only">Judge's signature: __________________________________</div>
         </form>
 
         <section className="history no-print">
