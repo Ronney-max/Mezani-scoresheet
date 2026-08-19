@@ -23,13 +23,15 @@ const technicalSections = [
 
 const emptyTechnical = () => Object.fromEntries(technicalSections.map((section) => [section.key, '']));
 const emptySensory = () => Object.fromEntries(sensorySections.map((section) => [section.key, '']));
+const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const apiUrl = (path) => `${apiBaseUrl}${path}`;
 
 function formatPercent(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : '-';
 }
 
 async function requestJson(url) {
-  const response = await fetch(url, { cache: 'no-store' });
+  const response = await fetch(apiUrl(url), { cache: 'no-store' });
   if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
   return response.json();
 }
@@ -111,7 +113,7 @@ export default function App() {
     setSubmittingKey(submissionKey);
     setStatus({ type: '', message: '' });
     try {
-      const response = await fetch(`/api/scores/competitor/${person.id}/${sectionType}`, {
+      const response = await fetch(apiUrl(`/api/scores/competitor/${person.id}/${sectionType}`), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ judgeName, date: meta.date, round: meta.round, scores: sectionScores }),
       });
@@ -126,7 +128,7 @@ export default function App() {
   }
 
   async function removeRecord(id) {
-    const response = await fetch(`/api/scores/${id}`, { method: 'DELETE' });
+    const response = await fetch(apiUrl(`/api/scores/${id}`), { method: 'DELETE' });
     if (response.ok) setSaved((current) => current.filter((record) => record.id !== id));
   }
 

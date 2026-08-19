@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import cors from 'cors';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -10,6 +11,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const scoresFile = path.join(dataDir, 'scores.json');
 const formspreeEndpoint = process.env.FORMSPREE_ENDPOINT || 'https://formspree.io/f/myegyagd';
+const frontendOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173,https://mezani-scoresheet.onrender.com')
+  .split(',').map((origin) => origin.trim()).filter(Boolean);
 const sensorySections = [
   { key: 'espresso', label: 'Espresso Evaluation', max: 49 },
   { key: 'milk', label: 'Milk Beverage Evaluation', max: 33 },
@@ -35,6 +38,16 @@ const competitors = [
   'Hillary Mulanda', 'Felix Ouma', 'Hillary Ouma',
 ].map((name, index) => ({ id: index + 1, name }));
 
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || frontendOrigins.includes(origin)) return callback(null, true);
+    const error = new Error('This frontend origin is not allowed.');
+    error.status = 403;
+    return callback(error);
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+}));
 app.use(express.json({ limit: '1mb' }));
 
 async function readScores() {
@@ -297,7 +310,7 @@ app.delete('/api/scores/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && process.env.SERVE_FRONTEND !== 'false') {
   app.use(express.static(path.join(root, 'dist'), {
     etag: false,
     lastModified: false,
@@ -315,7 +328,9 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ message: 'Something went wrong on the server.' });
+  res.status(error.status || 500).json({
+    message: error.status ? error.message : 'Something went wrong on the server.',
+  });
 });
 
 app.listen(port, () => console.log(`Scoresheet server listening on http://localhost:${port}`));
