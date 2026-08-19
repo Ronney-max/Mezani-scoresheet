@@ -216,8 +216,21 @@ app.delete('/api/scores/:id', async (req, res, next) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(root, 'dist')));
-  app.get(/.*/, (_req, res) => res.sendFile(path.join(root, 'dist', 'index.html')));
+  app.use(express.static(path.join(root, 'dist'), {
+    etag: false,
+    lastModified: false,
+    setHeaders: (res, filePath) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      if (filePath.endsWith('index.html')) res.setHeader('Clear-Site-Data', '"cache"');
+    },
+  }));
+  app.get(/.*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Clear-Site-Data', '"cache"');
+    res.sendFile(path.join(root, 'dist', 'index.html'));
+  });
 }
 
 app.use((error, _req, res, _next) => {
