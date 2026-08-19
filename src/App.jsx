@@ -138,8 +138,9 @@ export default function App() {
           <div className="portal-chip">Official judging portal</div>
         </div>
         <div className="hero-row">
-          <div>
-            <h1>Mezani Scoresheet</h1>
+          <div className="hero-brand">
+            <div className="brand-logo-wrap"><img src="/mezani-logo.png" alt="Mezani" className="brand-logo" /></div>
+            <h1>Competition Scoresheet</h1>
             <p>The Best of Mezani - Barista Competition</p>
           </div>
           <div className="event-badge"><strong>19-21</strong><span>August 2026</span></div>
