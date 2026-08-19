@@ -25,7 +25,8 @@ export default function App() {
   const [scores, setScores] = useState({});
   const [saved, setSaved] = useState([]);
   const [status, setStatus] = useState({ type: '', message: '' });
-  const [saving, setSaving] = useState(false);
+  const [submittingId, setSubmittingId] = useState(null);
+  const [submittedIds, setSubmittedIds] = useState(new Set());
 
   useEffect(() => {
     Promise.all([
@@ -68,30 +69,36 @@ export default function App() {
   function resetForm() {
     setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: '', technical: emptyTechnical() }])));
     setMeta((current) => ({ ...emptyMeta, judgeName: current.judgeName }));
+    setSubmittedIds(new Set());
     setStatus({ type: '', message: '' });
   }
 
-  async function saveScores(event) {
-    event.preventDefault();
-    if (completed !== competitors.length) {
-      setStatus({ type: 'error', message: `Complete all scores first (${completed}/${competitors.length} done).` });
+  async function submitCompetitor(person) {
+    if (!meta.judgeName.trim()) {
+      setStatus({ type: 'error', message: 'Enter the judge name before submitting a competitor.' });
       return;
     }
-    setSaving(true);
+    const entry = scores[person.id];
+    const complete = entry?.sensory !== '' && technicalSections.every((section) => entry?.technical?.[section.key] !== '');
+    if (!complete) {
+      setStatus({ type: 'error', message: `Complete all scoring criteria for ${person.name} before submitting.` });
+      return;
+    }
+    setSubmittingId(person.id);
     setStatus({ type: '', message: '' });
-    const entries = competitors.map((person) => ({ competitorId: person.id, ...scores[person.id] }));
     try {
-      const response = await fetch('/api/scores', {
+      const response = await fetch('/api/scores/competitor', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...meta, entries }),
+        body: JSON.stringify({ ...meta, entry: { competitorId: person.id, ...entry } }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
       setSaved((current) => [result, ...current]);
-      setStatus({ type: 'success', message: "Scoresheet submitted to Wesley's Formspree storage and saved successfully." });
+      setSubmittedIds((current) => new Set([...current, person.id]));
+      setStatus({ type: 'success', message: `${person.name}'s scores were submitted successfully. All entered data remains intact.` });
     } catch (error) {
-      setStatus({ type: 'error', message: error.message || 'Unable to save scoresheet.' });
-    } finally { setSaving(false); }
+      setStatus({ type: 'error', message: error.message || `Unable to submit ${person.name}'s scores.` });
+    } finally { setSubmittingId(null); }
   }
 
   async function removeRecord(id) {
@@ -120,7 +127,7 @@ export default function App() {
           <div className="stat"><span>Competitors</span><strong>{competitors.length}</strong></div>
           <div className="stat"><span>Scored</span><strong>{completed}/{competitors.length}</strong></div>
           <div className="stat"><span>Combined maximum</span><strong>{combinedMax}</strong></div>
-          <div className="stat"><span>Saved sheets</span><strong>{saved.length}</strong></div>
+          <div className="stat"><span>Submissions</span><strong>{saved.length}</strong></div>
         </section>
 
         <section className="progress-panel no-print" aria-label="Scoring progress">
@@ -132,7 +139,7 @@ export default function App() {
           <p>{completed === competitors.length && competitors.length ? 'All competitors are ready for submission.' : `${competitors.length - completed} competitors remaining`}</p>
         </section>
 
-        <form onSubmit={saveScores} className="score-card">
+        <form onSubmit={(event) => event.preventDefault()} className="score-card">
           <div className="section-heading">
             <div><span className="section-number">01</span><h2>Judge & session</h2></div>
             <p>Set the score limits before judging.</p>
@@ -151,7 +158,7 @@ export default function App() {
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
+              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th><th className="no-print">Submit</th></tr></thead>
               <tbody>{competitors.map((person) => {
                 const row = ranked.find((item) => item.id === person.id) || {};
                 return <tr key={person.id}>
@@ -171,6 +178,7 @@ export default function App() {
                   </td>
                   <td data-label={`Total / ${combinedMax}`} className="calculated">{row.total?.toFixed(1) ?? '0.0'}</td>
                   <td data-label="Percentage"><span className="percent-pill">{formatPercent(row.percentage || 0)}</span></td>
+                  <td data-label="Submit" className="submit-cell no-print"><button type="button" className={`row-submit ${submittedIds.has(person.id) ? 'submitted' : ''}`} disabled={submittingId === person.id} onClick={() => submitCompetitor(person)}>{submittingId === person.id ? 'Submitting...' : submittedIds.has(person.id) ? 'Submit again' : 'Submit score'}</button></td>
                 </tr>;
               })}</tbody>
             </table>
@@ -184,7 +192,6 @@ export default function App() {
           <div className="actions">
             <button type="button" className="button ghost no-print" onClick={resetForm}>Clear sheet</button>
             <button type="button" className="button secondary no-print" onClick={() => window.print()}>Print / PDF</button>
-            <button className="button primary no-print" disabled={saving}>{saving ? 'Saving...' : 'Save scoresheet'}</button>
             <div className="signature print-only">Judge's signature: __________________________________</div>
           </div>
         </form>
@@ -193,7 +200,7 @@ export default function App() {
           <div className="section-heading"><div><span className="section-number">04</span><h2>Saved score sheets</h2></div></div>
           {saved.length === 0 ? <div className="empty-state"><strong>No saved sheets yet</strong><span>Completed judging sessions will appear here.</span></div> :
             <div className="history-list">{saved.map((record) => <article key={record.id}>
-              <div><strong>{record.judgeName}</strong><span>{record.date} · {record.round || 'Unspecified session'}</span></div>
+              <div><strong>{record.competitorName || record.judgeName}</strong><span>{record.competitorName ? `Judge: ${record.judgeName} · ` : ''}{record.date} · {record.round || 'Unspecified session'}</span></div>
               <button onClick={() => removeRecord(record.id)} aria-label={`Delete scoresheet by ${record.judgeName}`}>Delete</button>
             </article>)}</div>}
         </section>

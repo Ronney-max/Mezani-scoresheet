@@ -43,10 +43,91 @@ async function writeScores(scores) {
   await fs.writeFile(scoresFile, JSON.stringify(scores, null, 2));
 }
 
+function normalizeEntry(entry) {
+  const technicalBreakdown = Object.fromEntries(technicalSections.map((section) => [section.key, Number(entry.technical?.[section.key])]));
+  return {
+    competitorId: Number(entry.competitorId),
+    sensory: Number(entry.sensory),
+    technicalBreakdown,
+    technical: Object.values(technicalBreakdown).reduce((sum, value) => sum + value, 0),
+  };
+}
+
+function entryIsInvalid(entry, sensoryMax) {
+  return !Number.isFinite(entry.sensory) || entry.sensory < 0 || entry.sensory > Number(sensoryMax) ||
+    technicalSections.some((section) => !Number.isFinite(entry.technicalBreakdown[section.key]) || entry.technicalBreakdown[section.key] < 0 || entry.technicalBreakdown[section.key] > section.max);
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/competitors', (_req, res) => res.json(competitors));
 app.get('/api/scores', async (_req, res, next) => {
   try { res.json(await readScores()); } catch (error) { next(error); }
+});
+
+app.post('/api/scores/competitor', async (req, res, next) => {
+  try {
+    const { judgeName, date, round, sensoryMax, comments, entry } = req.body;
+    if (!judgeName?.trim()) return res.status(400).json({ message: 'Judge name is required.' });
+    if (!(Number(sensoryMax) > 0)) return res.status(400).json({ message: 'Maximum sensory score must be greater than zero.' });
+
+    const competitor = competitors.find((person) => person.id === Number(entry?.competitorId));
+    if (!competitor) return res.status(400).json({ message: 'A valid competitor is required.' });
+    const normalized = normalizeEntry(entry);
+    if (entryIsInvalid(normalized, sensoryMax)) return res.status(400).json({ message: 'Complete all scoring criteria for this competitor.' });
+
+    const total = normalized.sensory + normalized.technical;
+    const combinedMaximum = Number(sensoryMax) + technicalMaximum;
+    const record = {
+      id: crypto.randomUUID(),
+      submissionType: 'individual-competitor',
+      competitorId: competitor.id,
+      competitorName: competitor.name,
+      judgeName: judgeName.trim(),
+      date,
+      round: round?.trim() || '',
+      sensoryMax: Number(sensoryMax),
+      technicalMax: technicalMaximum,
+      comments: comments?.trim() || '',
+      entry: normalized,
+      total,
+      percentage: Number(((total / combinedMaximum) * 100).toFixed(1)),
+      createdAt: new Date().toISOString(),
+    };
+
+    const formspreeResponse = await fetch(formspreeEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        _subject: `Mezani score - ${competitor.name} - ${record.judgeName}`,
+        submissionType: 'Individual competitor score',
+        competition: 'The Best of Mezani - Barista Competition',
+        competitorNumber: competitor.id,
+        competitor: competitor.name,
+        judgeName: record.judgeName,
+        date: record.date,
+        round: record.round || 'Unspecified session',
+        sensoryScore: normalized.sensory,
+        sensoryMaximum: record.sensoryMax,
+        technicalScore: normalized.technical,
+        technicalMaximum,
+        technicalBreakdown: Object.fromEntries(technicalSections.map((section) => [section.label, normalized.technicalBreakdown[section.key]])),
+        totalScore: total,
+        combinedMaximum,
+        percentage: record.percentage,
+        comments: record.comments || 'No comments provided',
+        submittedAt: record.createdAt,
+      }),
+    });
+    if (!formspreeResponse.ok) {
+      const failure = await formspreeResponse.json().catch(() => ({}));
+      return res.status(502).json({ message: failure.errors?.[0]?.message || 'Formspree could not store this competitor score. Please try again.' });
+    }
+
+    const scores = await readScores();
+    scores.unshift(record);
+    await writeScores(scores);
+    res.status(201).json(record);
+  } catch (error) { next(error); }
 });
 
 app.post('/api/scores', async (req, res, next) => {
@@ -59,19 +140,8 @@ app.post('/api/scores', async (req, res, next) => {
     if (!Array.isArray(entries) || entries.length !== competitors.length) {
       return res.status(400).json({ message: 'Scores are required for all competitors.' });
     }
-    const normalized = entries.map((entry) => {
-      const technicalBreakdown = Object.fromEntries(technicalSections.map((section) => [section.key, Number(entry.technical?.[section.key])]));
-      return {
-        competitorId: Number(entry.competitorId),
-        sensory: Number(entry.sensory),
-        technicalBreakdown,
-        technical: Object.values(technicalBreakdown).reduce((sum, value) => sum + value, 0),
-      };
-    });
-    const invalid = normalized.some((entry) =>
-      !Number.isFinite(entry.sensory) || entry.sensory < 0 || entry.sensory > Number(sensoryMax) ||
-      technicalSections.some((section) => !Number.isFinite(entry.technicalBreakdown[section.key]) || entry.technicalBreakdown[section.key] < 0 || entry.technicalBreakdown[section.key] > section.max)
-    );
+    const normalized = entries.map(normalizeEntry);
+    const invalid = normalized.some((entry) => entryIsInvalid(entry, sensoryMax));
     if (invalid) return res.status(400).json({ message: 'One or more scores are invalid.' });
 
     const record = {

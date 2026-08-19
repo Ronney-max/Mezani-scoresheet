@@ -9,7 +9,9 @@ http.createServer((request, response) => {
   request.on('data', (chunk) => { body += chunk; });
   request.on('end', () => {
     const payload = JSON.parse(body);
-    if (!Array.isArray(payload.scores) || payload.scores.length !== 19 || payload.technicalMaximum !== 71) {
+    const validFullSheet = Array.isArray(payload.scores) && payload.scores.length === 19;
+    const validCompetitor = payload.submissionType === 'Individual competitor score' && payload.competitor && Number.isFinite(payload.totalScore);
+    if ((!validFullSheet && !validCompetitor) || payload.technicalMaximum !== 71) {
       response.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid payload' }));
       return;
     }

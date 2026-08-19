@@ -11,22 +11,22 @@ const payload = {
   date: '2026-08-18',
   round: 'Verification',
   sensoryMax: 60,
-  technicalMax: 40,
+  technicalMax: 71,
   comments: 'Created by the API verification script.',
-  entries: competitors.map((competitor, index) => ({
-    competitorId: competitor.id,
-    sensory: 30 + (index % 10),
+  entry: {
+    competitorId: competitors[0].id,
+    sensory: 36,
     technical: {
       startUp: 4,
-      espresso: 12 + (index % 3),
-      milk: 16 + (index % 4),
-      signature: 12 + (index % 3),
+      espresso: 14,
+      milk: 18,
+      signature: 14,
       final: 6,
     },
-  })),
+  },
 };
 
-const createdResponse = await fetch(`${base}/api/scores`, {
+const createdResponse = await fetch(`${base}/api/scores/competitor`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(payload),
