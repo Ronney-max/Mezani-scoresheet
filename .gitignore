@@ -1,6 +1,7 @@
 node_modules/
 dist/
 data/scores.json
+backend/data/scores.json
 .DS_Store
 tmp/pdfs/vendor/
 tmp/pdfs/wbc/
