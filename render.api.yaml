@@ -13,7 +13,7 @@ services:
       - key: SERVE_FRONTEND
         value: "false"
       - key: FRONTEND_ORIGIN
-        value: https://mezani-scoresheet-web.onrender.com
+        sync: false
       - key: DATA_DIR
         value: /var/data/mezani
       - key: FORMSPREE_ENDPOINT
@@ -22,16 +22,3 @@ services:
       name: scoresheet-data
       mountPath: /var/data
       sizeGB: 1
-
-  - type: web
-    name: mezani-scoresheet-web
-    runtime: static
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://mezani-scoresheet-api.onrender.com
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
