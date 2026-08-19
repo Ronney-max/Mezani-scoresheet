@@ -40,8 +40,9 @@ score persistence, and Formspree submission. It never builds or serves React.
 
 For Render, create a Blueprint using the root `render.yaml`. It explicitly sets
 `rootDir: backend` for the separated Node application. Set
-`FRONTEND_ORIGIN` to the exact Netlify origin, for example
-`https://your-site.netlify.app`. Multiple allowed origins can be comma-separated.
+`FRONTEND_ORIGIN` to the exact Netlify origin. The production Blueprint is fixed
+to `https://mezani-scoresheet.netlify.app`; multiple local or preview origins can
+be comma-separated when configuring the backend manually.
 
 ## Communication
 
