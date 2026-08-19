@@ -143,7 +143,7 @@ export default function App() {
             <h1>Mezani Barista Competition</h1>
             <p>4th Edition</p>
           </div>
-          <div className="event-badge"><strong>19-21</strong><span>August 2026</span></div>
+          <div className="event-badge"><strong>20-22</strong><span>August 2026</span></div>
         </div>
       </header>
 
