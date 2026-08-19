@@ -2,8 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 
 const emptyMeta = {
   judgeName: '', date: new Date().toISOString().slice(0, 10), round: '',
-  sensoryMax: 60, technicalMax: 71, comments: '',
+  sensoryMax: 166, technicalMax: 71, comments: '',
 };
+
+const sensorySections = [
+  { key: 'espresso', label: 'I. Espresso evaluation', max: 49, guidance: 'Crema; accuracy of taste and tactile descriptors; taste experience; tactile experience.' },
+  { key: 'milk', label: 'II. Milk beverage evaluation', max: 33, guidance: 'Visual appeal; accuracy of taste descriptors; taste experience.' },
+  { key: 'signature', label: 'III. Signature beverage evaluation', max: 42, guidance: 'Accuracy of taste descriptors; explanation, introduction and preparation; taste experience.' },
+  { key: 'barista', label: 'IV. Barista evaluation', max: 30, guidance: 'Attention to detail and accessories; presentation; coffee knowledge and use of equipment and space.' },
+  { key: 'impression', label: 'V. Total impression', max: 12, guidance: 'Judge\'s overall impression of the competitor and presentation.' },
+];
 
 const technicalSections = [
   { key: 'startUp', label: 'I. Station at start-up', max: 6, guidance: 'Clean working area at start-up; clean cloths.' },
@@ -14,6 +22,7 @@ const technicalSections = [
 ];
 
 const emptyTechnical = () => Object.fromEntries(technicalSections.map((section) => [section.key, '']));
+const emptySensory = () => Object.fromEntries(sensorySections.map((section) => [section.key, '']));
 
 function formatPercent(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : '-';
@@ -35,28 +44,24 @@ export default function App() {
     ]).then(([people, history]) => {
       setCompetitors(people);
       setSaved(history);
-      setScores(Object.fromEntries(people.map((person) => [person.id, { sensory: '', technical: emptyTechnical() }])));
+      setScores(Object.fromEntries(people.map((person) => [person.id, { sensory: emptySensory(), technical: emptyTechnical() }])));
     }).catch(() => setStatus({ type: 'error', message: 'Unable to connect to the scoring server.' }));
   }, []);
 
   const combinedMax = Number(meta.sensoryMax || 0) + Number(meta.technicalMax || 0);
   const ranked = useMemo(() => competitors.map((person) => {
     const row = scores[person.id] || {};
-    const sensory = Number(row.sensory || 0);
+    const sensory = sensorySections.reduce((sum, section) => sum + Number(row.sensory?.[section.key] || 0), 0);
     const technical = technicalSections.reduce((sum, section) => sum + Number(row.technical?.[section.key] || 0), 0);
     const total = sensory + technical;
     return { ...person, sensory: row.sensory, technical, total, percentage: combinedMax ? total / combinedMax * 100 : 0 };
   }).sort((a, b) => b.total - a.total), [competitors, scores, combinedMax]);
 
-  const completed = competitors.filter((person) => scores[person.id]?.sensory !== '' && technicalSections.every((section) => scores[person.id]?.technical?.[section.key] !== '')).length;
+  const completed = competitors.filter((person) => sensorySections.every((section) => scores[person.id]?.sensory?.[section.key] !== '') && technicalSections.every((section) => scores[person.id]?.technical?.[section.key] !== '')).length;
 
   function updateMeta(event) {
     const { name, value } = event.target;
     setMeta((current) => ({ ...current, [name]: value }));
-  }
-
-  function updateScore(id, field, value) {
-    setScores((current) => ({ ...current, [id]: { ...current[id], [field]: value } }));
   }
 
   function updateTechnicalScore(id, section, value) {
@@ -66,8 +71,15 @@ export default function App() {
     }));
   }
 
+  function updateSensoryScore(id, section, value) {
+    setScores((current) => ({
+      ...current,
+      [id]: { ...current[id], sensory: { ...current[id].sensory, [section]: value } },
+    }));
+  }
+
   function resetForm() {
-    setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: '', technical: emptyTechnical() }])));
+    setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: emptySensory(), technical: emptyTechnical() }])));
     setMeta((current) => ({ ...emptyMeta, judgeName: current.judgeName }));
     setSubmittedIds(new Set());
     setStatus({ type: '', message: '' });
@@ -79,7 +91,7 @@ export default function App() {
       return;
     }
     const entry = scores[person.id];
-    const complete = entry?.sensory !== '' && technicalSections.every((section) => entry?.technical?.[section.key] !== '');
+    const complete = sensorySections.every((section) => entry?.sensory?.[section.key] !== '') && technicalSections.every((section) => entry?.technical?.[section.key] !== '');
     if (!complete) {
       setStatus({ type: 'error', message: `Complete all scoring criteria for ${person.name} before submitting.` });
       return;
@@ -148,7 +160,7 @@ export default function App() {
             <label>Judge's name<input name="judgeName" value={meta.judgeName} onChange={updateMeta} placeholder="Enter full name" required /></label>
             <label>Date<input type="date" name="date" value={meta.date} onChange={updateMeta} required /></label>
             <label>Round / session<input name="round" value={meta.round} onChange={updateMeta} placeholder="e.g. Preliminary 1" /></label>
-            <label>Maximum sensory<input type="number" min="1" name="sensoryMax" value={meta.sensoryMax} onChange={updateMeta} required /></label>
+            <label>Sensory maximum<input value="166 points" readOnly aria-label="Sensory maximum" /></label>
             <label>Technical maximum<input value="71 points" readOnly aria-label="Technical maximum" /></label>
           </div>
 
@@ -164,11 +176,21 @@ export default function App() {
                 return <tr key={person.id}>
                   <td data-label="Number"><span className="number-badge">{String(person.id).padStart(2, '0')}</span></td>
                   <td data-label="Competitor"><strong>{person.name}</strong></td>
-                  <td data-label={`Sensory / ${meta.sensoryMax || 0}`}><input aria-label={`${person.name} sensory score`} type="number" min="0" max={meta.sensoryMax} step="0.1" value={scores[person.id]?.sensory ?? ''} onChange={(e) => updateScore(person.id, 'sensory', e.target.value)} placeholder="0" required /></td>
-                  <td data-label="Technical / 71" className="technical-cell">
+                  <td data-label="Sensory / 166" className="criteria-cell sensory-cell">
+                    <details>
+                      <summary><span>{row.sensory?.toFixed(1) ?? '0.0'} / 166</span><small>Score 5 sections</small></summary>
+                      <div className="criteria-breakdown">
+                        {sensorySections.map((section) => <label key={section.key} title={section.guidance}>
+                          <span>{section.label}<small>{section.guidance}</small></span>
+                          <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.sensory?.[section.key] ?? ''} onChange={(e) => updateSensoryScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
+                        </label>)}
+                      </div>
+                    </details>
+                  </td>
+                  <td data-label="Technical / 71" className="criteria-cell technical-cell">
                     <details>
                       <summary><span>{row.technical?.toFixed(1) ?? '0.0'} / 71</span><small>Score 5 sections</small></summary>
-                      <div className="technical-breakdown">
+                      <div className="criteria-breakdown technical-breakdown">
                         {technicalSections.map((section) => <label key={section.key} title={section.guidance}>
                           <span>{section.label}<small>{section.guidance}</small></span>
                           <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.technical?.[section.key] ?? ''} onChange={(e) => updateTechnicalScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />

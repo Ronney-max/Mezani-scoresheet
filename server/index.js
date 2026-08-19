@@ -10,6 +10,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const scoresFile = path.join(dataDir, 'scores.json');
 const formspreeEndpoint = process.env.FORMSPREE_ENDPOINT || 'https://formspree.io/f/myegyagd';
+const sensorySections = [
+  { key: 'espresso', label: 'Espresso Evaluation', max: 49 },
+  { key: 'milk', label: 'Milk Beverage Evaluation', max: 33 },
+  { key: 'signature', label: 'Signature Beverage Evaluation', max: 42 },
+  { key: 'barista', label: 'Barista Evaluation', max: 30 },
+  { key: 'impression', label: 'Total Impression', max: 12 },
+];
+const sensoryMaximum = sensorySections.reduce((sum, section) => sum + section.max, 0);
 const technicalSections = [
   { key: 'startUp', label: 'Station Evaluation at Start-Up', max: 6 },
   { key: 'espresso', label: 'Espresso Evaluation', max: 17 },
@@ -44,17 +52,19 @@ async function writeScores(scores) {
 }
 
 function normalizeEntry(entry) {
+  const sensoryBreakdown = Object.fromEntries(sensorySections.map((section) => [section.key, Number(entry.sensory?.[section.key])]));
   const technicalBreakdown = Object.fromEntries(technicalSections.map((section) => [section.key, Number(entry.technical?.[section.key])]));
   return {
     competitorId: Number(entry.competitorId),
-    sensory: Number(entry.sensory),
+    sensoryBreakdown,
+    sensory: Object.values(sensoryBreakdown).reduce((sum, value) => sum + value, 0),
     technicalBreakdown,
     technical: Object.values(technicalBreakdown).reduce((sum, value) => sum + value, 0),
   };
 }
 
-function entryIsInvalid(entry, sensoryMax) {
-  return !Number.isFinite(entry.sensory) || entry.sensory < 0 || entry.sensory > Number(sensoryMax) ||
+function entryIsInvalid(entry) {
+  return sensorySections.some((section) => !Number.isFinite(entry.sensoryBreakdown[section.key]) || entry.sensoryBreakdown[section.key] < 0 || entry.sensoryBreakdown[section.key] > section.max) ||
     technicalSections.some((section) => !Number.isFinite(entry.technicalBreakdown[section.key]) || entry.technicalBreakdown[section.key] < 0 || entry.technicalBreakdown[section.key] > section.max);
 }
 
@@ -66,17 +76,16 @@ app.get('/api/scores', async (_req, res, next) => {
 
 app.post('/api/scores/competitor', async (req, res, next) => {
   try {
-    const { judgeName, date, round, sensoryMax, comments, entry } = req.body;
+    const { judgeName, date, round, comments, entry } = req.body;
     if (!judgeName?.trim()) return res.status(400).json({ message: 'Judge name is required.' });
-    if (!(Number(sensoryMax) > 0)) return res.status(400).json({ message: 'Maximum sensory score must be greater than zero.' });
 
     const competitor = competitors.find((person) => person.id === Number(entry?.competitorId));
     if (!competitor) return res.status(400).json({ message: 'A valid competitor is required.' });
     const normalized = normalizeEntry(entry);
-    if (entryIsInvalid(normalized, sensoryMax)) return res.status(400).json({ message: 'Complete all scoring criteria for this competitor.' });
+    if (entryIsInvalid(normalized)) return res.status(400).json({ message: 'Complete all scoring criteria for this competitor.' });
 
     const total = normalized.sensory + normalized.technical;
-    const combinedMaximum = Number(sensoryMax) + technicalMaximum;
+    const combinedMaximum = sensoryMaximum + technicalMaximum;
     const record = {
       id: crypto.randomUUID(),
       submissionType: 'individual-competitor',
@@ -85,7 +94,7 @@ app.post('/api/scores/competitor', async (req, res, next) => {
       judgeName: judgeName.trim(),
       date,
       round: round?.trim() || '',
-      sensoryMax: Number(sensoryMax),
+      sensoryMax: sensoryMaximum,
       technicalMax: technicalMaximum,
       comments: comments?.trim() || '',
       entry: normalized,
@@ -108,6 +117,7 @@ app.post('/api/scores/competitor', async (req, res, next) => {
         round: record.round || 'Unspecified session',
         sensoryScore: normalized.sensory,
         sensoryMaximum: record.sensoryMax,
+        sensoryBreakdown: Object.fromEntries(sensorySections.map((section) => [section.label, normalized.sensoryBreakdown[section.key]])),
         technicalScore: normalized.technical,
         technicalMaximum,
         technicalBreakdown: Object.fromEntries(technicalSections.map((section) => [section.label, normalized.technicalBreakdown[section.key]])),
@@ -132,22 +142,19 @@ app.post('/api/scores/competitor', async (req, res, next) => {
 
 app.post('/api/scores', async (req, res, next) => {
   try {
-    const { judgeName, date, round, sensoryMax, technicalMax, entries, comments } = req.body;
+    const { judgeName, date, round, technicalMax, entries, comments } = req.body;
     if (!judgeName?.trim()) return res.status(400).json({ message: 'Judge name is required.' });
-    if (!(Number(sensoryMax) > 0)) {
-      return res.status(400).json({ message: 'Maximum sensory score must be greater than zero.' });
-    }
     if (!Array.isArray(entries) || entries.length !== competitors.length) {
       return res.status(400).json({ message: 'Scores are required for all competitors.' });
     }
     const normalized = entries.map(normalizeEntry);
-    const invalid = normalized.some((entry) => entryIsInvalid(entry, sensoryMax));
+    const invalid = normalized.some((entry) => entryIsInvalid(entry));
     if (invalid) return res.status(400).json({ message: 'One or more scores are invalid.' });
 
     const record = {
       id: crypto.randomUUID(),
       judgeName: judgeName.trim(), date, round: round?.trim() || '',
-      sensoryMax: Number(sensoryMax), technicalMax: technicalMaximum,
+      sensoryMax: sensoryMaximum, technicalMax: technicalMaximum,
       comments: comments?.trim() || '', entries: normalized,
       createdAt: new Date().toISOString(),
     };
@@ -170,6 +177,7 @@ app.post('/api/scores', async (req, res, next) => {
           number: competitor.id,
           competitor: competitor.name,
           sensory: entry.sensory,
+          sensoryBreakdown: Object.fromEntries(sensorySections.map((section) => [section.label, entry.sensoryBreakdown[section.key]])),
           technical: entry.technical,
           technicalBreakdown: Object.fromEntries(technicalSections.map((section) => [section.label, entry.technicalBreakdown[section.key]])),
           total,

@@ -11,7 +11,7 @@ http.createServer((request, response) => {
     const payload = JSON.parse(body);
     const validFullSheet = Array.isArray(payload.scores) && payload.scores.length === 19;
     const validCompetitor = payload.submissionType === 'Individual competitor score' && payload.competitor && Number.isFinite(payload.totalScore);
-    if ((!validFullSheet && !validCompetitor) || payload.technicalMaximum !== 71) {
+    if ((!validFullSheet && !validCompetitor) || payload.sensoryMaximum !== 166 || payload.technicalMaximum !== 71) {
       response.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid payload' }));
       return;
     }

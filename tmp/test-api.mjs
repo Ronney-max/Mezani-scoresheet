@@ -15,7 +15,13 @@ const payload = {
   comments: 'Created by the API verification script.',
   entry: {
     competitorId: competitors[0].id,
-    sensory: 36,
+    sensory: {
+      espresso: 40,
+      milk: 27,
+      signature: 34,
+      barista: 24,
+      impression: 10,
+    },
     technical: {
       startUp: 4,
       espresso: 14,
