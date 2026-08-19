@@ -2,8 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 
 const emptyMeta = {
   judgeName: '', date: new Date().toISOString().slice(0, 10), round: '',
-  sensoryMax: 60, technicalMax: 40, comments: '',
+  sensoryMax: 60, technicalMax: 71, comments: '',
 };
+
+const technicalSections = [
+  { key: 'startUp', label: 'I. Station at start-up', max: 6, guidance: 'Clean working area at start-up; clean cloths.' },
+  { key: 'espresso', label: 'II. Espresso evaluation', max: 17, guidance: 'Flush group head; clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
+  { key: 'milk', label: 'III. Milk beverage', max: 22, guidance: 'Espresso technical skills plus empty/clean pitcher, steam-wand purge before and after steaming, clean steam wand, and acceptable milk waste.' },
+  { key: 'signature', label: 'IV. Signature beverage', max: 17, guidance: 'Clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
+  { key: 'final', label: 'V. Final technical evaluation', max: 9, guidance: 'Station management; clean working area at end; clean portafilter spouts; general hygiene; proper use of cloths.' },
+];
+
+const emptyTechnical = () => Object.fromEntries(technicalSections.map((section) => [section.key, '']));
 
 function formatPercent(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : '-';
@@ -24,7 +34,7 @@ export default function App() {
     ]).then(([people, history]) => {
       setCompetitors(people);
       setSaved(history);
-      setScores(Object.fromEntries(people.map((person) => [person.id, { sensory: '', technical: '' }])));
+      setScores(Object.fromEntries(people.map((person) => [person.id, { sensory: '', technical: emptyTechnical() }])));
     }).catch(() => setStatus({ type: 'error', message: 'Unable to connect to the scoring server.' }));
   }, []);
 
@@ -32,12 +42,12 @@ export default function App() {
   const ranked = useMemo(() => competitors.map((person) => {
     const row = scores[person.id] || {};
     const sensory = Number(row.sensory || 0);
-    const technical = Number(row.technical || 0);
+    const technical = technicalSections.reduce((sum, section) => sum + Number(row.technical?.[section.key] || 0), 0);
     const total = sensory + technical;
-    return { ...person, ...row, total, percentage: combinedMax ? total / combinedMax * 100 : 0 };
+    return { ...person, sensory: row.sensory, technical, total, percentage: combinedMax ? total / combinedMax * 100 : 0 };
   }).sort((a, b) => b.total - a.total), [competitors, scores, combinedMax]);
 
-  const completed = competitors.filter((person) => scores[person.id]?.sensory !== '' && scores[person.id]?.technical !== '').length;
+  const completed = competitors.filter((person) => scores[person.id]?.sensory !== '' && technicalSections.every((section) => scores[person.id]?.technical?.[section.key] !== '')).length;
 
   function updateMeta(event) {
     const { name, value } = event.target;
@@ -48,8 +58,15 @@ export default function App() {
     setScores((current) => ({ ...current, [id]: { ...current[id], [field]: value } }));
   }
 
+  function updateTechnicalScore(id, section, value) {
+    setScores((current) => ({
+      ...current,
+      [id]: { ...current[id], technical: { ...current[id].technical, [section]: value } },
+    }));
+  }
+
   function resetForm() {
-    setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: '', technical: '' }])));
+    setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: '', technical: emptyTechnical() }])));
     setMeta((current) => ({ ...emptyMeta, judgeName: current.judgeName }));
     setStatus({ type: '', message: '' });
   }
@@ -125,7 +142,7 @@ export default function App() {
             <label>Date<input type="date" name="date" value={meta.date} onChange={updateMeta} required /></label>
             <label>Round / session<input name="round" value={meta.round} onChange={updateMeta} placeholder="e.g. Preliminary 1" /></label>
             <label>Maximum sensory<input type="number" min="1" name="sensoryMax" value={meta.sensoryMax} onChange={updateMeta} required /></label>
-            <label>Maximum technical<input type="number" min="1" name="technicalMax" value={meta.technicalMax} onChange={updateMeta} required /></label>
+            <label>WBC technical maximum<input value="71 points" readOnly aria-label="WBC technical maximum" /></label>
           </div>
 
           <div className="section-heading scores-heading">
@@ -134,14 +151,24 @@ export default function App() {
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / {meta.technicalMax || 0}</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
+              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>WBC Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
               <tbody>{competitors.map((person) => {
                 const row = ranked.find((item) => item.id === person.id) || {};
                 return <tr key={person.id}>
                   <td data-label="Number"><span className="number-badge">{String(person.id).padStart(2, '0')}</span></td>
                   <td data-label="Competitor"><strong>{person.name}</strong></td>
                   <td data-label={`Sensory / ${meta.sensoryMax || 0}`}><input aria-label={`${person.name} sensory score`} type="number" min="0" max={meta.sensoryMax} step="0.1" value={scores[person.id]?.sensory ?? ''} onChange={(e) => updateScore(person.id, 'sensory', e.target.value)} placeholder="0" required /></td>
-                  <td data-label={`Technical / ${meta.technicalMax || 0}`}><input aria-label={`${person.name} technical score`} type="number" min="0" max={meta.technicalMax} step="0.1" value={scores[person.id]?.technical ?? ''} onChange={(e) => updateScore(person.id, 'technical', e.target.value)} placeholder="0" required /></td>
+                  <td data-label="WBC Technical / 71" className="technical-cell">
+                    <details>
+                      <summary><span>{row.technical?.toFixed(1) ?? '0.0'} / 71</span><small>Score 5 sections</small></summary>
+                      <div className="technical-breakdown">
+                        {technicalSections.map((section) => <label key={section.key} title={section.guidance}>
+                          <span>{section.label}<small>{section.guidance}</small></span>
+                          <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.technical?.[section.key] ?? ''} onChange={(e) => updateTechnicalScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
+                        </label>)}
+                      </div>
+                    </details>
+                  </td>
                   <td data-label={`Total / ${combinedMax}`} className="calculated">{row.total?.toFixed(1) ?? '0.0'}</td>
                   <td data-label="Percentage"><span className="percent-pill">{formatPercent(row.percentage || 0)}</span></td>
                 </tr>;

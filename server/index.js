@@ -10,6 +10,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const scoresFile = path.join(dataDir, 'scores.json');
 const formspreeEndpoint = process.env.FORMSPREE_ENDPOINT || 'https://formspree.io/f/myegyagd';
+const technicalSections = [
+  { key: 'startUp', label: 'Station Evaluation at Start-Up', max: 6 },
+  { key: 'espresso', label: 'Espresso Evaluation', max: 17 },
+  { key: 'milk', label: 'Milk Beverage Evaluation', max: 22 },
+  { key: 'signature', label: 'Signature Beverage Evaluation', max: 17 },
+  { key: 'final', label: 'Final Technical Evaluation', max: 9 },
+];
+const technicalMaximum = technicalSections.reduce((sum, section) => sum + section.max, 0);
 
 const competitors = [
   'Jackline Mwangi', 'Ryan Kagombe', "Ndung'u Agnes", 'Peter Njuguna',
@@ -45,28 +53,31 @@ app.post('/api/scores', async (req, res, next) => {
   try {
     const { judgeName, date, round, sensoryMax, technicalMax, entries, comments } = req.body;
     if (!judgeName?.trim()) return res.status(400).json({ message: 'Judge name is required.' });
-    if (!(Number(sensoryMax) > 0) || !(Number(technicalMax) > 0)) {
-      return res.status(400).json({ message: 'Maximum scores must be greater than zero.' });
+    if (!(Number(sensoryMax) > 0)) {
+      return res.status(400).json({ message: 'Maximum sensory score must be greater than zero.' });
     }
     if (!Array.isArray(entries) || entries.length !== competitors.length) {
       return res.status(400).json({ message: 'Scores are required for all competitors.' });
     }
-    const normalized = entries.map((entry) => ({
-      competitorId: Number(entry.competitorId),
-      sensory: Number(entry.sensory),
-      technical: Number(entry.technical),
-    }));
+    const normalized = entries.map((entry) => {
+      const technicalBreakdown = Object.fromEntries(technicalSections.map((section) => [section.key, Number(entry.technical?.[section.key])]));
+      return {
+        competitorId: Number(entry.competitorId),
+        sensory: Number(entry.sensory),
+        technicalBreakdown,
+        technical: Object.values(technicalBreakdown).reduce((sum, value) => sum + value, 0),
+      };
+    });
     const invalid = normalized.some((entry) =>
-      !Number.isFinite(entry.sensory) || !Number.isFinite(entry.technical) ||
-      entry.sensory < 0 || entry.technical < 0 ||
-      entry.sensory > Number(sensoryMax) || entry.technical > Number(technicalMax)
+      !Number.isFinite(entry.sensory) || entry.sensory < 0 || entry.sensory > Number(sensoryMax) ||
+      technicalSections.some((section) => !Number.isFinite(entry.technicalBreakdown[section.key]) || entry.technicalBreakdown[section.key] < 0 || entry.technicalBreakdown[section.key] > section.max)
     );
     if (invalid) return res.status(400).json({ message: 'One or more scores are invalid.' });
 
     const record = {
       id: crypto.randomUUID(),
       judgeName: judgeName.trim(), date, round: round?.trim() || '',
-      sensoryMax: Number(sensoryMax), technicalMax: Number(technicalMax),
+      sensoryMax: Number(sensoryMax), technicalMax: technicalMaximum,
       comments: comments?.trim() || '', entries: normalized,
       createdAt: new Date().toISOString(),
     };
@@ -90,6 +101,7 @@ app.post('/api/scores', async (req, res, next) => {
           competitor: competitor.name,
           sensory: entry.sensory,
           technical: entry.technical,
+          technicalBreakdown: Object.fromEntries(technicalSections.map((section) => [section.label, entry.technicalBreakdown[section.key]])),
           total,
           percentage: Number(((total / (record.sensoryMax + record.technicalMax)) * 100).toFixed(1)),
         };

@@ -1,4 +1,4 @@
-const base = 'http://localhost:4010';
+const base = process.env.BASE_URL || 'http://localhost:4010';
 
 const health = await fetch(`${base}/api/health`).then((response) => response.json());
 if (!health.ok) throw new Error('Health check failed');
@@ -16,7 +16,13 @@ const payload = {
   entries: competitors.map((competitor, index) => ({
     competitorId: competitor.id,
     sensory: 30 + (index % 10),
-    technical: 20 + (index % 10),
+    technical: {
+      startUp: 4,
+      espresso: 12 + (index % 3),
+      milk: 16 + (index % 4),
+      signature: 12 + (index % 3),
+      final: 6,
+    },
   })),
 };
 
