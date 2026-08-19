@@ -27,18 +27,51 @@ const sensoryGroups = [
     { key: 'totalImpression', label: 'Total Impression', max: 6, multiplier: 2, scale: '0 to 6' },
   ] },
 ];
-const technicalSections = [
-  { key: 'startUp', label: 'I. Station at start-up', max: 6, multiplier: 1, guidance: 'Clean working area at start-up; clean cloths.' },
-  { key: 'espresso', label: 'II. Espresso evaluation', max: 17, multiplier: 1, guidance: 'Flush group head; clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
-  { key: 'milk', label: 'III. Milk beverage', max: 22, multiplier: 1, guidance: 'Espresso technical skills plus empty/clean pitcher, steam-wand purge before and after steaming, clean steam wand, and acceptable milk waste.' },
-  { key: 'signature', label: 'IV. Signature beverage', max: 17, multiplier: 1, guidance: 'Clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
-  { key: 'final', label: 'V. Final technical evaluation', max: 9, multiplier: 1, guidance: 'Station management; clean working area at end; clean portafilter spouts; general hygiene; proper use of cloths.' },
+const yesNo = (key, label) => ({ key, label, max: 1, multiplier: 1, scale: 'Yes = 1, No = 0' });
+const quality = (key, label) => ({ key, label, max: 6, multiplier: 1, scale: '0 to 6' });
+const technicalCoffeeFields = (prefix, beverage) => [
+  yesNo(`${prefix}Flush`, 'Flushes the Group Head'),
+  yesNo(`${prefix}Basket`, 'Dry/Clean Filter Basket Before Dosing'),
+  quality(`${prefix}Waste`, 'Acceptable Spill/Waste When Dosing/Grinding'),
+  quality(`${prefix}DoseTamp`, 'Consistent Dosing and Tamping'),
+  yesNo(`${prefix}Portafilter`, 'Cleans Portafilters Before Insert'),
+  yesNo(`${prefix}ImmediateBrew`, 'Insert and Immediate Brew'),
+  yesNo(`${prefix}Extraction`, 'Extraction Time Within 3 Second Variance'),
+].map((field) => ({ ...field, beverage }));
+const technicalGroups = [
+  { key: 'startUp', title: 'Part I - Station Evaluation at Start-Up', maximum: 6, fields: [quality('startUpCleanliness', 'Clean Working Area at Start-Up/Clean Cloths')] },
+  { key: 'espresso', title: 'Part II - Espresso Evaluation', maximum: 17, fields: technicalCoffeeFields('espresso', 'Espresso') },
+  { key: 'milk', title: 'Part III - Milk Beverage Evaluation', maximum: 22, fields: [
+    ...technicalCoffeeFields('milk', 'Milk Beverage'),
+    yesNo('milkPitcher', 'Empty/Clean Pitcher at Start'),
+    yesNo('milkPurgeBefore', 'Purges the Steam Wand Before Steaming'),
+    yesNo('milkCleanWand', 'Cleans Steam Wand After Steaming'),
+    yesNo('milkPurgeAfter', 'Purges the Steam Wand After Steaming'),
+    yesNo('milkWasteEnd', 'Acceptable Milk Waste at End'),
+  ] },
+  { key: 'signature', title: 'Part IV - Signature Beverage Evaluation', maximum: 17, fields: technicalCoffeeFields('signature', 'Signature Beverage') },
+  { key: 'final', title: 'Part V - Technical Evaluation', maximum: 9, fields: [
+    quality('finalStation', 'Station Management/Clean Working Area at End'),
+    yesNo('finalSpouts', 'Clean Portafilter Spouts/Avoided Placing Spouts in Doser Chamber'),
+    yesNo('finalHygiene', 'General Hygiene Throughout Presentation'),
+    yesNo('finalCloths', 'Proper Usage of Cloths'),
+  ] },
 ];
+const technicalMeasurements = {
+  espresso: ['espressoShot1Time', 'espressoShot1Waste', 'espressoShot2Time', 'espressoShot2Waste'],
+  milk: ['milkShot1Time', 'milkShot1Waste', 'milkShot2Time', 'milkShot2Waste', 'milkQuantity'],
+  signature: ['signatureShot1Time', 'signatureShot1Waste', 'signatureShot2Time', 'signatureShot2Waste'],
+};
+const measurementLabels = {
+  espressoShot1Time: 'Shot 1 time (seconds)', espressoShot1Waste: 'Shot 1 waste (g)', espressoShot2Time: 'Shot 2 time (seconds)', espressoShot2Waste: 'Shot 2 waste (g)',
+  milkShot1Time: 'Shot 1 time (seconds)', milkShot1Waste: 'Shot 1 waste (g)', milkShot2Time: 'Shot 2 time (seconds)', milkShot2Waste: 'Shot 2 waste (g)', milkQuantity: 'Milk used (ml/oz)',
+  signatureShot1Time: 'Shot 1 time (seconds)', signatureShot1Waste: 'Shot 1 waste (g)', signatureShot2Time: 'Shot 2 time (seconds)', signatureShot2Waste: 'Shot 2 waste (g)',
+};
 const sensoryFields = sensoryGroups.flatMap((group) => group.fields);
-const technicalGroups = technicalSections.map((field) => ({ key: field.key, title: field.label, maximum: field.max, fields: [field] }));
+const technicalFields = technicalGroups.flatMap((group) => group.fields);
 const roleConfig = {
   sensory: { title: 'Sensory Judge', maximum: 166, fields: sensoryFields, groups: sensoryGroups },
-  technical: { title: 'Technical Judge', maximum: 71, fields: technicalSections, groups: technicalGroups },
+  technical: { title: 'Technical Judge', maximum: 71, fields: technicalFields, groups: technicalGroups },
   admin: { title: 'Overall Results' },
 };
 const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -85,7 +118,12 @@ function Login({ role, onLogin }) {
 function JudgePage({ role, onLogout }) {
   const config = roleConfig[role];
   const emptyScores = () => Object.fromEntries(config.fields.map((field) => [field.key, '']));
-  const emptyObservations = () => ({ representing: '', introduction: '', espressoDescriptors: '', espressoExperience: '', milkDescriptors: '', milkExperience: '', signatureDescriptors: '', signatureExperience: '' });
+  const emptyObservations = () => ({
+    representing: '', introduction: '', espressoDescriptors: '', espressoExperience: '', milkDescriptors: '', milkExperience: '', signatureDescriptors: '', signatureExperience: '',
+    espressoShot1Time: '', espressoShot1Waste: '', espressoShot2Time: '', espressoShot2Waste: '',
+    milkShot1Time: '', milkShot1Waste: '', milkShot2Time: '', milkShot2Waste: '', milkQuantity: '',
+    signatureShot1Time: '', signatureShot1Waste: '', signatureShot2Time: '', signatureShot2Waste: '',
+  });
   const [competitors, setCompetitors] = useState([]);
   const [scores, setScores] = useState({});
   const [observations, setObservations] = useState({});
@@ -131,13 +169,15 @@ function JudgePage({ role, onLogout }) {
     <section className="stat-grid no-print"><div className="stat"><span>Competitors</span><strong>{competitors.length}</strong></div><div className="stat"><span>{config.title} maximum</span><strong>{config.maximum}</strong></div><div className="stat"><span>Your submissions</span><strong>{submissions.length}</strong></div></section>
     <form className="score-card" onSubmit={(event) => event.preventDefault()}><div className="section-heading"><div><span className="section-number">01</span><h2>{config.title} details</h2></div></div><div className="meta-grid judge-meta"><label>Judge name<input value={meta.judgeName} onChange={(event) => setMeta({ ...meta, judgeName: event.target.value })} placeholder="Full name" /></label><label>Date<input type="date" value={meta.date} onChange={(event) => setMeta({ ...meta, date: event.target.value })} /></label><label>Round / session<input value={meta.round} onChange={(event) => setMeta({ ...meta, round: event.target.value })} placeholder="e.g. Preliminary 1" /></label></div>
       <div className="section-heading scores-heading"><div><span className="section-number">02</span><h2>{config.title} scores</h2></div><p>Each competitor submits independently.</p></div>
-      <div className={`judge-grid ${role === 'sensory' ? 'sensory-judge-grid' : ''}`}>{competitors.map((person) => { const total = totalFor(person.id); return <details className="competitor-card competitor-dropdown" key={person.id}><summary className="competitor-heading"><span className="number-badge">{String(person.id).padStart(2, '0')}</span><div><h3>{person.name}</h3><span>{total.toFixed(1)} / {config.maximum} · {((total / config.maximum) * 100).toFixed(1)}%</span></div><span className="dropdown-indicator" aria-hidden="true">+</span></summary>
-        {role === 'sensory' && <div className="sensory-introduction"><label>Representing<input value={observations[person.id]?.representing ?? ''} onChange={(event) => updateObservation(person.id, 'representing', event.target.value)} placeholder="Company or organization" /></label><label>Introduction & Coffee Information<textarea value={observations[person.id]?.introduction ?? ''} onChange={(event) => updateObservation(person.id, 'introduction', event.target.value)} rows="3" /></label></div>}
+      <div className="judge-grid template-judge-grid">{competitors.map((person) => { const total = totalFor(person.id); return <details className="competitor-card competitor-dropdown" key={person.id}><summary className="competitor-heading"><span className="number-badge">{String(person.id).padStart(2, '0')}</span><div><h3>{person.name}</h3><span>{total.toFixed(1)} / {config.maximum} · {((total / config.maximum) * 100).toFixed(1)}%</span></div><span className="dropdown-indicator" aria-hidden="true">+</span></summary>
+        <div className={`sensory-introduction ${role === 'technical' ? 'single-field' : ''}`}><label>Representing<input value={observations[person.id]?.representing ?? ''} onChange={(event) => updateObservation(person.id, 'representing', event.target.value)} placeholder="Company or organization" /></label>{role === 'sensory' && <label>Introduction & Coffee Information<textarea value={observations[person.id]?.introduction ?? ''} onChange={(event) => updateObservation(person.id, 'introduction', event.target.value)} rows="3" /></label>}</div>
         <div className="sensory-sheet">{config.groups.map((group) => <section className="sensory-part" key={group.key}><div className="sensory-part-heading"><strong>{group.title}</strong><span>{groupTotal(person.id, group).toFixed(1)} / {group.maximum}</span></div>
           {role === 'sensory' && ['espresso', 'milk', 'signature'].includes(group.key) && <div className="sensory-observation-grid"><label>Descriptors<textarea rows="2" value={observations[person.id]?.[`${group.key}Descriptors`] ?? ''} onChange={(event) => updateObservation(person.id, `${group.key}Descriptors`, event.target.value)} /></label><label>Experience<textarea rows="2" value={observations[person.id]?.[`${group.key}Experience`] ?? ''} onChange={(event) => updateObservation(person.id, `${group.key}Experience`, event.target.value)} /></label></div>}
+          {role === 'technical' && technicalMeasurements[group.key] && <div className="technical-measurement-grid">{technicalMeasurements[group.key].map((measurement) => <label key={measurement}>{measurementLabels[measurement]}<input type="text" inputMode="decimal" value={observations[person.id]?.[measurement] ?? ''} onChange={(event) => updateObservation(person.id, measurement, event.target.value)} /></label>)}</div>}
           <div className="criteria-breakdown open-breakdown">{group.fields.map((field) => <label key={field.key}><span>{field.label}<small>{field.scale || field.guidance}{field.multiplier > 1 ? ` · ${field.multiplier} × multiplier` : ''}</small></span><span className="weighted-input"><input aria-label={`${person.name} ${field.label}`} type="number" min="0" max={field.max} step="0.1" value={scores[person.id]?.[field.key] ?? ''} onChange={(event) => updateScore(person.id, field.key, event.target.value)} placeholder={`0-${field.max}`} /><b>{field.multiplier > 1 ? `× ${field.multiplier}` : ''}</b></span></label>)}</div>
         </section>)}</div>
         {role === 'sensory' && <div className="evaluation-scales"><strong>Evaluation Scales</strong><span>Yes = 1 · No = 0</span><span>0 to 6: Unacceptable = 0 · Acceptable = 1 · Average = 2 · Good = 3 · Very Good = 4 · Excellent = 5 · Extraordinary = 6</span><span>0 to 3 Accuracy: None to Evaluate = 0 · Not Very Accurate = 1 · Somewhat Accurate = 2 · Very Accurate = 3</span><span>0 to 3 Impression: None to Evaluate = 0 · Not Very = 1 · Somewhat = 2 · Very = 3</span></div>}
+        {role === 'technical' && <div className="evaluation-scales"><strong>Evaluation Scale</strong><span>Yes = 1 · No = 0</span><span>Unacceptable = 0 · Acceptable = 1 · Average = 2 · Good = 3 · Very Good = 4 · Excellent = 5 · Extraordinary = 6</span><span>Coffee waste: 0g = 6 · 1g = 5 · 2g = 4 · 3g = 3 · 4g = 2 · 5g = 1 · More than 5g = 0</span></div>}
         <div className="competitor-submit"><div><span>{role === 'sensory' ? 'Sensory Score' : 'Technical Score'}</span><strong>{total.toFixed(1)} / {config.maximum}</strong></div><button type="button" className="criteria-submit" disabled={busy === person.id} onClick={() => submit(person)}>{busy === person.id ? 'Submitting...' : `Submit ${role} score`}</button>{status.key === person.id && <div className={`notice inline-notice ${status.type}`}>{status.message}</div>}</div>
       </details>; })}</div>
     </form>

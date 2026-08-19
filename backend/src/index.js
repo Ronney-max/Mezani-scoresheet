@@ -46,11 +46,37 @@ const sensorySections = [
   { key: 'totalImpression', label: "Judge's Total Impression", max: 6, multiplier: 2 },
 ];
 const technicalSections = [
-  { key: 'startUp', label: 'Station Evaluation at Start-Up', max: 6, multiplier: 1 },
-  { key: 'espresso', label: 'Espresso Evaluation', max: 17, multiplier: 1 },
-  { key: 'milk', label: 'Milk Beverage Evaluation', max: 22, multiplier: 1 },
-  { key: 'signature', label: 'Signature Beverage Evaluation', max: 17, multiplier: 1 },
-  { key: 'final', label: 'Final Technical Evaluation', max: 9, multiplier: 1 },
+  { key: 'startUpCleanliness', label: 'Start-Up - Clean Working Area/Clean Cloths', max: 6, multiplier: 1 },
+  { key: 'espressoFlush', label: 'Espresso - Flushes the Group Head', max: 1, multiplier: 1 },
+  { key: 'espressoBasket', label: 'Espresso - Dry/Clean Filter Basket Before Dosing', max: 1, multiplier: 1 },
+  { key: 'espressoWaste', label: 'Espresso - Acceptable Spill/Waste When Dosing/Grinding', max: 6, multiplier: 1 },
+  { key: 'espressoDoseTamp', label: 'Espresso - Consistent Dosing and Tamping', max: 6, multiplier: 1 },
+  { key: 'espressoPortafilter', label: 'Espresso - Cleans Portafilters Before Insert', max: 1, multiplier: 1 },
+  { key: 'espressoImmediateBrew', label: 'Espresso - Insert and Immediate Brew', max: 1, multiplier: 1 },
+  { key: 'espressoExtraction', label: 'Espresso - Extraction Time Within 3 Second Variance', max: 1, multiplier: 1 },
+  { key: 'milkFlush', label: 'Milk Beverage - Flushes the Group Head', max: 1, multiplier: 1 },
+  { key: 'milkBasket', label: 'Milk Beverage - Dry/Clean Filter Basket Before Dosing', max: 1, multiplier: 1 },
+  { key: 'milkWaste', label: 'Milk Beverage - Acceptable Spill/Waste When Dosing/Grinding', max: 6, multiplier: 1 },
+  { key: 'milkDoseTamp', label: 'Milk Beverage - Consistent Dosing and Tamping', max: 6, multiplier: 1 },
+  { key: 'milkPortafilter', label: 'Milk Beverage - Cleans Portafilters Before Insert', max: 1, multiplier: 1 },
+  { key: 'milkImmediateBrew', label: 'Milk Beverage - Insert and Immediate Brew', max: 1, multiplier: 1 },
+  { key: 'milkExtraction', label: 'Milk Beverage - Extraction Time Within 3 Second Variance', max: 1, multiplier: 1 },
+  { key: 'milkPitcher', label: 'Milk Beverage - Empty/Clean Pitcher at Start', max: 1, multiplier: 1 },
+  { key: 'milkPurgeBefore', label: 'Milk Beverage - Purges Steam Wand Before Steaming', max: 1, multiplier: 1 },
+  { key: 'milkCleanWand', label: 'Milk Beverage - Cleans Steam Wand After Steaming', max: 1, multiplier: 1 },
+  { key: 'milkPurgeAfter', label: 'Milk Beverage - Purges Steam Wand After Steaming', max: 1, multiplier: 1 },
+  { key: 'milkWasteEnd', label: 'Milk Beverage - Acceptable Milk Waste at End', max: 1, multiplier: 1 },
+  { key: 'signatureFlush', label: 'Signature Beverage - Flushes the Group Head', max: 1, multiplier: 1 },
+  { key: 'signatureBasket', label: 'Signature Beverage - Dry/Clean Filter Basket Before Dosing', max: 1, multiplier: 1 },
+  { key: 'signatureWaste', label: 'Signature Beverage - Acceptable Spill/Waste When Dosing/Grinding', max: 6, multiplier: 1 },
+  { key: 'signatureDoseTamp', label: 'Signature Beverage - Consistent Dosing and Tamping', max: 6, multiplier: 1 },
+  { key: 'signaturePortafilter', label: 'Signature Beverage - Cleans Portafilters Before Insert', max: 1, multiplier: 1 },
+  { key: 'signatureImmediateBrew', label: 'Signature Beverage - Insert and Immediate Brew', max: 1, multiplier: 1 },
+  { key: 'signatureExtraction', label: 'Signature Beverage - Extraction Time Within 3 Second Variance', max: 1, multiplier: 1 },
+  { key: 'finalStation', label: 'Technical - Station Management/Clean Working Area at End', max: 6, multiplier: 1 },
+  { key: 'finalSpouts', label: 'Technical - Clean Portafilter Spouts/Avoided Doser Chamber', max: 1, multiplier: 1 },
+  { key: 'finalHygiene', label: 'Technical - General Hygiene Throughout Presentation', max: 1, multiplier: 1 },
+  { key: 'finalCloths', label: 'Technical - Proper Usage of Cloths', max: 1, multiplier: 1 },
 ];
 const sectionsByRole = { sensory: sensorySections, technical: technicalSections };
 const maximumByRole = {
@@ -212,7 +238,7 @@ app.post('/api/judging/:role/competitors/:competitorId', async (req, res, next) 
         points: breakdown[section.key] * section.multiplier,
       }]));
       const total = sections.reduce((sum, section) => sum + breakdown[section.key] * section.multiplier, 0);
-      const safeObservations = role === 'sensory' && observations && typeof observations === 'object'
+      const safeObservations = observations && typeof observations === 'object'
         ? Object.fromEntries(Object.entries(observations).map(([key, value]) => [key, String(value || '').trim().slice(0, 2000)]))
         : {};
       const record = {
@@ -232,7 +258,7 @@ app.post('/api/judging/:role/competitors/:competitorId', async (req, res, next) 
           competitorNumber: competitor.id, competitor: competitor.name,
           [`${role}Judge`]: record.judgeName, date: record.date,
           round: record.round || 'Unspecified session', [`${role}Breakdown`]: weightedBreakdown,
-          ...(role === 'sensory' ? { sensoryObservations: safeObservations } : {}),
+          [`${role}Observations`]: safeObservations,
           [`${role}Score`]: total, [`${role}Maximum`]: maximumByRole[role],
           percentage: record.percentage, submittedAt: record.createdAt,
         }),
