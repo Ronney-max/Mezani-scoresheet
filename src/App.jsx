@@ -135,7 +135,7 @@ export default function App() {
       <header className="hero">
         <div className="topline">
           <div className="eyebrow">Africa Food Show Kenya 2026</div>
-          <div className="portal-chip">Official judging portal</div>
+          <div className="kbo-logo-wrap"><img src="/kbo-logo.jpeg" alt="Kenya Barista Organization" className="kbo-logo" /></div>
         </div>
         <div className="hero-row">
           <div className="hero-brand">
