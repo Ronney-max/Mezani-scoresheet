@@ -1,0 +1,29 @@
+[
+  {
+    "id": "9bfb1f6a-e04f-431f-9b9d-ae0be949520e",
+    "submissionType": "individual-competitor",
+    "competitorId": 1,
+    "competitorName": "Jackline Mwangi",
+    "judgeName": "July",
+    "date": "2026-08-19",
+    "round": "1",
+    "sensoryMax": 60,
+    "technicalMax": 71,
+    "comments": "",
+    "entry": {
+      "competitorId": 1,
+      "sensory": 50,
+      "technicalBreakdown": {
+        "startUp": 5,
+        "espresso": 15,
+        "milk": 18,
+        "signature": 15,
+        "final": 8
+      },
+      "technical": 61
+    },
+    "total": 111,
+    "percentage": 84.7,
+    "createdAt": "2026-08-19T12:25:33.096Z"
+  }
+]

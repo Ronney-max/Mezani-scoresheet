@@ -1,54 +1,58 @@
 # Mezani Competition Scoresheet
 
-A full-stack React and Node scoring application for the Africa Food Show Kenya
-barista competition. It includes all 19 competitors, sensory and technical
-scoring, automatic totals and percentages, saved judging sessions, and a
-printable judging sheet.
+This repository contains two independent applications. They communicate only
+through the backend's HTTP API.
 
-## Local development
+```text
+frontend/  React + Vite website (Netlify)
+backend/   Node + Express API (Render)
+```
+
+There is intentionally no root `package.json`. Each application owns its source,
+dependencies, lockfile, environment variables, development command, and hosting
+configuration.
+
+## Frontend (React / Netlify)
 
 ```bash
+cd frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-The React development server runs on port 5173 and proxies API requests to the
-Node server on port 4000.
+The frontend runs at `http://localhost:5173`. `VITE_API_URL` identifies the
+separately running backend. For Netlify, create a site from this repository and
+set **Base directory** to `frontend`. Netlify will then use
+`frontend/netlify.toml` automatically.
 
-## Production
+## Backend (Node / Render)
 
 ```bash
-npm run build
-npm start
+cd backend
+cp .env.example .env
+npm install
+npm run dev
 ```
 
-The Node server serves both the API and the compiled React application. Set
-`PORT` to choose its listening port and `DATA_DIR` to select the persistent
-scoresheet storage directory. Completed scoresheets are also submitted to the
-Formspree endpoint configured through `FORMSPREE_ENDPOINT`.
+The backend runs at `http://localhost:4000`. It owns competitor data, validation,
+score persistence, and Formspree submission. It never builds or serves React.
 
-## Separate Netlify frontend and Render backend
+For Render, create a Blueprint using `backend/render.yaml`. Set
+`FRONTEND_ORIGIN` to the exact Netlify origin, for example
+`https://your-site.netlify.app`. Multiple allowed origins can be comma-separated.
 
-The React frontend and Node API run as independent services:
+## Communication
 
-- Netlify builds the React static site using `netlify.toml` and injects the
-  public Render API URL through `VITE_API_URL`.
-- Render runs the Node API with `SERVE_FRONTEND=false` using `render.api.yaml`.
-- Set `FRONTEND_ORIGIN` on Render to the exact Netlify site origin. Separate multiple
-  allowed origins with commas.
+The React frontend calls these independent backend routes:
 
-The frontend uses `VITE_API_URL` for every API request. The backend validates
-the frontend origin with CORS before accepting browser requests. See
-`.env.example` for local values, `netlify.toml` for the frontend, and
-`render.api.yaml` for the backend.
+- `GET /api/health`
+- `GET /api/competitors`
+- `GET /api/scores`
+- `POST /api/scores/competitor/:competitorId/sensory`
+- `POST /api/scores/competitor/:competitorId/technical`
 
-## Render deployment
-
-The included `render.yaml` creates a Node web service with a persistent disk.
-Connect this repository in Render and select **New > Blueprint**. Render will
-use the build, start, health-check, and disk settings automatically.
-
-The existing `render.yaml` preserves the current combined deployment during the
-migration. Create a second Render Blueprint and select `render.api.yaml` as its
-path to create the backend API. Then import the same GitHub repository in
-Netlify; `netlify.toml` supplies the frontend build and routing settings.
+Sensory and technical judges submit independently. Every accepted submission is
+sent to the configured Formspree endpoint and stored by the backend. Render's
+persistent disk is mounted at `/var/data`; local data is stored in
+`backend/data/scores.json`.
