@@ -142,7 +142,7 @@ export default function App() {
             <label>Date<input type="date" name="date" value={meta.date} onChange={updateMeta} required /></label>
             <label>Round / session<input name="round" value={meta.round} onChange={updateMeta} placeholder="e.g. Preliminary 1" /></label>
             <label>Maximum sensory<input type="number" min="1" name="sensoryMax" value={meta.sensoryMax} onChange={updateMeta} required /></label>
-            <label>WBC technical maximum<input value="71 points" readOnly aria-label="WBC technical maximum" /></label>
+            <label>Technical maximum<input value="71 points" readOnly aria-label="Technical maximum" /></label>
           </div>
 
           <div className="section-heading scores-heading">
@@ -151,14 +151,14 @@ export default function App() {
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>WBC Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
+              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
               <tbody>{competitors.map((person) => {
                 const row = ranked.find((item) => item.id === person.id) || {};
                 return <tr key={person.id}>
                   <td data-label="Number"><span className="number-badge">{String(person.id).padStart(2, '0')}</span></td>
                   <td data-label="Competitor"><strong>{person.name}</strong></td>
                   <td data-label={`Sensory / ${meta.sensoryMax || 0}`}><input aria-label={`${person.name} sensory score`} type="number" min="0" max={meta.sensoryMax} step="0.1" value={scores[person.id]?.sensory ?? ''} onChange={(e) => updateScore(person.id, 'sensory', e.target.value)} placeholder="0" required /></td>
-                  <td data-label="WBC Technical / 71" className="technical-cell">
+                  <td data-label="Technical / 71" className="technical-cell">
                     <details>
                       <summary><span>{row.technical?.toFixed(1) ?? '0.0'} / 71</span><small>Score 5 sections</small></summary>
                       <div className="technical-breakdown">
