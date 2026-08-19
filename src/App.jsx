@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const emptyMeta = {
-  judgeName: '', date: new Date().toISOString().slice(0, 10), round: '',
+  sensoryJudgeName: '', technicalJudgeName: '', date: new Date().toISOString().slice(0, 10), round: '',
   sensoryMax: 166, technicalMax: 71, comments: '',
 };
 
@@ -40,8 +40,8 @@ export default function App() {
   const [scores, setScores] = useState({});
   const [saved, setSaved] = useState([]);
   const [status, setStatus] = useState({ type: '', message: '' });
-  const [submittingId, setSubmittingId] = useState(null);
-  const [submittedIds, setSubmittedIds] = useState(new Set());
+  const [submittingKey, setSubmittingKey] = useState(null);
+  const [submittedSections, setSubmittedSections] = useState(new Set());
 
   useEffect(() => {
     Promise.all([
@@ -87,37 +87,42 @@ export default function App() {
 
   function resetForm() {
     setScores(Object.fromEntries(competitors.map((person) => [person.id, { sensory: emptySensory(), technical: emptyTechnical() }])));
-    setMeta((current) => ({ ...emptyMeta, judgeName: current.judgeName }));
-    setSubmittedIds(new Set());
+    setMeta((current) => ({ ...emptyMeta, sensoryJudgeName: current.sensoryJudgeName, technicalJudgeName: current.technicalJudgeName }));
+    setSubmittedSections(new Set());
     setStatus({ type: '', message: '' });
   }
 
-  async function submitCompetitor(person) {
-    if (!meta.judgeName.trim()) {
-      setStatus({ type: 'error', message: 'Enter the judge name before submitting a competitor.' });
+  async function submitSection(person, sectionType) {
+    const isSensory = sectionType === 'sensory';
+    const judgeName = isSensory ? meta.sensoryJudgeName : meta.technicalJudgeName;
+    const sections = isSensory ? sensorySections : technicalSections;
+    const sectionScores = scores[person.id]?.[sectionType];
+    const label = isSensory ? 'Sensory' : 'Technical';
+    const submissionKey = `${sectionType}-${person.id}`;
+    if (!judgeName.trim()) {
+      setStatus({ type: 'error', message: `Enter the ${label.toLowerCase()} judge name before submitting.` });
       return;
     }
-    const entry = scores[person.id];
-    const complete = sensorySections.every((section) => entry?.sensory?.[section.key] !== '') && technicalSections.every((section) => entry?.technical?.[section.key] !== '');
+    const complete = sections.every((section) => sectionScores?.[section.key] !== '');
     if (!complete) {
-      setStatus({ type: 'error', message: `Complete all scoring criteria for ${person.name} before submitting.` });
+      setStatus({ type: 'error', message: `Complete all ${label.toLowerCase()} criteria for ${person.name} before submitting.` });
       return;
     }
-    setSubmittingId(person.id);
+    setSubmittingKey(submissionKey);
     setStatus({ type: '', message: '' });
     try {
-      const response = await fetch('/api/scores/competitor', {
+      const response = await fetch(`/api/scores/competitor/${person.id}/${sectionType}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...meta, entry: { competitorId: person.id, ...entry } }),
+        body: JSON.stringify({ judgeName, date: meta.date, round: meta.round, scores: sectionScores }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
       setSaved((current) => [result, ...current]);
-      setSubmittedIds((current) => new Set([...current, person.id]));
-      setStatus({ type: 'success', message: `${person.name}'s scores were submitted successfully. All entered data remains intact.` });
+      setSubmittedSections((current) => new Set([...current, submissionKey]));
+      setStatus({ type: 'success', message: `${person.name}'s ${label.toLowerCase()} score was submitted by ${judgeName}. All entered data remains intact.` });
     } catch (error) {
-      setStatus({ type: 'error', message: error.message || `Unable to submit ${person.name}'s scores.` });
-    } finally { setSubmittingId(null); }
+      setStatus({ type: 'error', message: error.message || `Unable to submit ${person.name}'s ${label.toLowerCase()} score.` });
+    } finally { setSubmittingKey(null); }
   }
 
   async function removeRecord(id) {
@@ -164,7 +169,8 @@ export default function App() {
             <p>Set the score limits before judging.</p>
           </div>
           <div className="meta-grid">
-            <label>Judge's name<input name="judgeName" value={meta.judgeName} onChange={updateMeta} placeholder="Enter full name" required /></label>
+            <label>Sensory judge<input name="sensoryJudgeName" value={meta.sensoryJudgeName} onChange={updateMeta} placeholder="Sensory judge's full name" /></label>
+            <label>Technical judge<input name="technicalJudgeName" value={meta.technicalJudgeName} onChange={updateMeta} placeholder="Technical judge's full name" /></label>
             <label>Date<input type="date" name="date" value={meta.date} onChange={updateMeta} required /></label>
             <label>Round / session<input name="round" value={meta.round} onChange={updateMeta} placeholder="e.g. Preliminary 1" /></label>
             <label>Sensory maximum<input value="166 points" readOnly aria-label="Sensory maximum" /></label>
@@ -177,7 +183,7 @@ export default function App() {
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th><th className="no-print">Submit</th></tr></thead>
+              <thead><tr><th>#</th><th>Competitor</th><th>Sensory / {meta.sensoryMax || 0}</th><th>Technical / 71</th><th>Total / {combinedMax}</th><th>Percentage</th></tr></thead>
               <tbody>{competitors.map((person) => {
                 const row = ranked.find((item) => item.id === person.id) || {};
                 return <tr key={person.id}>
@@ -191,6 +197,7 @@ export default function App() {
                           <span>{section.label}<small>{section.guidance}</small></span>
                           <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.sensory?.[section.key] ?? ''} onChange={(e) => updateSensoryScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
                         </label>)}
+                        <button type="button" className={`criteria-submit ${submittedSections.has(`sensory-${person.id}`) ? 'submitted' : ''}`} disabled={submittingKey === `sensory-${person.id}`} onClick={() => submitSection(person, 'sensory')}>{submittingKey === `sensory-${person.id}` ? 'Submitting...' : submittedSections.has(`sensory-${person.id}`) ? 'Submit sensory again' : 'Submit sensory'}</button>
                       </div>
                     </details>
                   </td>
@@ -202,12 +209,12 @@ export default function App() {
                           <span>{section.label}<small>{section.guidance}</small></span>
                           <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.technical?.[section.key] ?? ''} onChange={(e) => updateTechnicalScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
                         </label>)}
+                        <button type="button" className={`criteria-submit ${submittedSections.has(`technical-${person.id}`) ? 'submitted' : ''}`} disabled={submittingKey === `technical-${person.id}`} onClick={() => submitSection(person, 'technical')}>{submittingKey === `technical-${person.id}` ? 'Submitting...' : submittedSections.has(`technical-${person.id}`) ? 'Submit technical again' : 'Submit technical'}</button>
                       </div>
                     </details>
                   </td>
                   <td data-label={`Total / ${combinedMax}`} className="calculated">{row.total?.toFixed(1) ?? '0.0'}</td>
                   <td data-label="Percentage"><span className="percent-pill">{formatPercent(row.percentage || 0)}</span></td>
-                  <td data-label="Submit" className="submit-cell no-print"><button type="button" className={`row-submit ${submittedIds.has(person.id) ? 'submitted' : ''}`} disabled={submittingId === person.id} onClick={() => submitCompetitor(person)}>{submittingId === person.id ? 'Submitting...' : submittedIds.has(person.id) ? 'Submit again' : 'Submit score'}</button></td>
                 </tr>;
               })}</tbody>
             </table>
@@ -227,7 +234,7 @@ export default function App() {
           <div className="section-heading"><div><span className="section-number">04</span><h2>Saved score sheets</h2></div></div>
           {saved.length === 0 ? <div className="empty-state"><strong>No saved sheets yet</strong><span>Completed judging sessions will appear here.</span></div> :
             <div className="history-list">{saved.map((record) => <article key={record.id}>
-              <div><strong>{record.competitorName || record.judgeName}</strong><span>{record.competitorName ? `Judge: ${record.judgeName} · ` : ''}{record.date} · {record.round || 'Unspecified session'}</span></div>
+              <div><strong>{record.competitorName || record.judgeName}</strong><span>{record.submissionType ? `${record.submissionType.charAt(0).toUpperCase() + record.submissionType.slice(1)} · ` : ''}{record.competitorName ? `Judge: ${record.judgeName} · ` : ''}{record.date} · {record.round || 'Unspecified session'}</span></div>
               <button onClick={() => removeRecord(record.id)} aria-label={`Delete scoresheet by ${record.judgeName}`}>Delete</button>
             </article>)}</div>}
         </section>

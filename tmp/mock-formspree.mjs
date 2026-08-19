@@ -10,8 +10,10 @@ http.createServer((request, response) => {
   request.on('end', () => {
     const payload = JSON.parse(body);
     const validFullSheet = Array.isArray(payload.scores) && payload.scores.length === 19;
-    const validCompetitor = payload.submissionType === 'Individual competitor score' && payload.competitor && Number.isFinite(payload.totalScore);
-    if ((!validFullSheet && !validCompetitor) || payload.sensoryMaximum !== 166 || payload.technicalMaximum !== 71) {
+    const validCombined = payload.submissionType === 'Individual competitor score' && payload.competitor && Number.isFinite(payload.totalScore);
+    const validSensory = payload.submissionType === 'Sensory score' && payload.sensoryMaximum === 166 && Number.isFinite(payload.sensoryScore);
+    const validTechnical = payload.submissionType === 'Technical score' && payload.technicalMaximum === 71 && Number.isFinite(payload.technicalScore);
+    if (!validFullSheet && !validCombined && !validSensory && !validTechnical) {
       response.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid payload' }));
       return;
     }

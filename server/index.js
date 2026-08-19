@@ -68,10 +68,92 @@ function entryIsInvalid(entry) {
     technicalSections.some((section) => !Number.isFinite(entry.technicalBreakdown[section.key]) || entry.technicalBreakdown[section.key] < 0 || entry.technicalBreakdown[section.key] > section.max);
 }
 
+function normalizeSection(rawScores, sections) {
+  return Object.fromEntries(sections.map((section) => [section.key, Number(rawScores?.[section.key])]));
+}
+
+function sectionIsInvalid(breakdown, sections) {
+  return sections.some((section) => !Number.isFinite(breakdown[section.key]) || breakdown[section.key] < 0 || breakdown[section.key] > section.max);
+}
+
+async function saveRecord(record) {
+  const scores = await readScores();
+  scores.unshift(record);
+  await writeScores(scores);
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/competitors', (_req, res) => res.json(competitors));
 app.get('/api/scores', async (_req, res, next) => {
   try { res.json(await readScores()); } catch (error) { next(error); }
+});
+
+app.post('/api/scores/competitor/:competitorId/sensory', async (req, res, next) => {
+  try {
+    const { judgeName, date, round, scores } = req.body;
+    if (!judgeName?.trim()) return res.status(400).json({ message: 'Sensory judge name is required.' });
+    const competitor = competitors.find((person) => person.id === Number(req.params.competitorId));
+    if (!competitor) return res.status(404).json({ message: 'Competitor not found.' });
+
+    const breakdown = normalizeSection(scores, sensorySections);
+    if (sectionIsInvalid(breakdown, sensorySections)) return res.status(400).json({ message: 'Complete all sensory criteria for this competitor.' });
+    const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+    const record = {
+      id: crypto.randomUUID(), submissionType: 'sensory', competitorId: competitor.id,
+      competitorName: competitor.name, judgeName: judgeName.trim(), date,
+      round: round?.trim() || '', maximum: sensoryMaximum, breakdown, total,
+      percentage: Number(((total / sensoryMaximum) * 100).toFixed(1)),
+      createdAt: new Date().toISOString(),
+    };
+
+    const formspreeResponse = await fetch(formspreeEndpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        _subject: `Mezani sensory score - ${competitor.name} - ${record.judgeName}`,
+        submissionType: 'Sensory score', competition: 'The Best of Mezani - Barista Competition',
+        competitorNumber: competitor.id, competitor: competitor.name, sensoryJudge: record.judgeName,
+        date: record.date, round: record.round || 'Unspecified session', sensoryBreakdown: breakdown,
+        sensoryScore: total, sensoryMaximum, percentage: record.percentage, submittedAt: record.createdAt,
+      }),
+    });
+    if (!formspreeResponse.ok) return res.status(502).json({ message: 'Formspree could not store this sensory score. Please try again.' });
+    await saveRecord(record);
+    res.status(201).json(record);
+  } catch (error) { next(error); }
+});
+
+app.post('/api/scores/competitor/:competitorId/technical', async (req, res, next) => {
+  try {
+    const { judgeName, date, round, scores } = req.body;
+    if (!judgeName?.trim()) return res.status(400).json({ message: 'Technical judge name is required.' });
+    const competitor = competitors.find((person) => person.id === Number(req.params.competitorId));
+    if (!competitor) return res.status(404).json({ message: 'Competitor not found.' });
+
+    const breakdown = normalizeSection(scores, technicalSections);
+    if (sectionIsInvalid(breakdown, technicalSections)) return res.status(400).json({ message: 'Complete all technical criteria for this competitor.' });
+    const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+    const record = {
+      id: crypto.randomUUID(), submissionType: 'technical', competitorId: competitor.id,
+      competitorName: competitor.name, judgeName: judgeName.trim(), date,
+      round: round?.trim() || '', maximum: technicalMaximum, breakdown, total,
+      percentage: Number(((total / technicalMaximum) * 100).toFixed(1)),
+      createdAt: new Date().toISOString(),
+    };
+
+    const formspreeResponse = await fetch(formspreeEndpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        _subject: `Mezani technical score - ${competitor.name} - ${record.judgeName}`,
+        submissionType: 'Technical score', competition: 'The Best of Mezani - Barista Competition',
+        competitorNumber: competitor.id, competitor: competitor.name, technicalJudge: record.judgeName,
+        date: record.date, round: record.round || 'Unspecified session', technicalBreakdown: breakdown,
+        technicalScore: total, technicalMaximum, percentage: record.percentage, submittedAt: record.createdAt,
+      }),
+    });
+    if (!formspreeResponse.ok) return res.status(502).json({ message: 'Formspree could not store this technical score. Please try again.' });
+    await saveRecord(record);
+    res.status(201).json(record);
+  } catch (error) { next(error); }
 });
 
 app.post('/api/scores/competitor', async (req, res, next) => {
