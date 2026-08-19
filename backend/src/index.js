@@ -24,6 +24,7 @@ function protectedSetting(name, developmentValue) {
 const accessCodes = {
   sensory: protectedSetting('SENSORY_ACCESS_CODE', 'sensory-dev'),
   technical: protectedSetting('TECHNICAL_ACCESS_CODE', 'technical-dev'),
+  head: protectedSetting('HEAD_JUDGE_ACCESS_CODE', 'head-dev'),
   admin: protectedSetting('ADMIN_ACCESS_CODE', 'admin-dev'),
 };
 const authSecret = protectedSetting('AUTH_SECRET', 'local-development-secret-change-on-render');
@@ -207,13 +208,13 @@ app.post('/api/auth/login', (req, res) => {
 app.get('/api/judging/:role/competitors', (req, res, next) => {
   const role = req.params.role;
   if (!sectionsByRole[role]) return res.status(404).json({ message: 'Judging area not found.' });
-  return requireRole(role)(req, res, () => res.json({ competitors, maximum: maximumByRole[role] }));
+  return requireRole(role, 'head')(req, res, () => res.json({ competitors, maximum: maximumByRole[role] }));
 });
 
 app.get('/api/judging/:role/submissions', async (req, res, next) => {
   const role = req.params.role;
   if (!sectionsByRole[role]) return res.status(404).json({ message: 'Judging area not found.' });
-  return requireRole(role)(req, res, async () => {
+  return requireRole(role, 'head')(req, res, async () => {
     try {
       const records = await readScores();
       res.json(records.filter((record) => record.submissionType === role));
@@ -270,14 +271,85 @@ app.post('/api/judging/:role/competitors/:competitorId', async (req, res, next) 
   });
 });
 
+app.get('/api/head-judge/competitors', requireRole('head'), (_req, res) => res.json(competitors));
+
+app.get('/api/head-judge/competitors/:competitorId', requireRole('head'), async (req, res, next) => {
+  try {
+    const competitor = competitors.find((person) => person.id === Number(req.params.competitorId));
+    if (!competitor) return res.status(404).json({ message: 'Competitor not found.' });
+    const records = await readScores();
+    res.json({
+      competitor,
+      sensory: records.filter((record) => record.competitorId === competitor.id && record.submissionType === 'sensory'),
+      technical: records.filter((record) => record.competitorId === competitor.id && record.submissionType === 'technical'),
+      headJudge: records.filter((record) => record.competitorId === competitor.id && record.submissionType === 'head-judge'),
+    });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/head-judge/competitors/:competitorId', requireRole('head'), async (req, res, next) => {
+  try {
+    const { judgeName, date, round, sensoryRecordIds, technicalRecordId, withinTime, overtimeSeconds, observations } = req.body;
+    if (!judgeName?.trim()) return res.status(400).json({ message: 'Head judge name is required.' });
+    const competitor = competitors.find((person) => person.id === Number(req.params.competitorId));
+    if (!competitor) return res.status(404).json({ message: 'Competitor not found.' });
+    if (!Array.isArray(sensoryRecordIds) || sensoryRecordIds.length !== 4 || new Set(sensoryRecordIds).size !== 4) {
+      return res.status(400).json({ message: 'Select four different sensory scores (S1-S4).' });
+    }
+    const records = await readScores();
+    const sensoryRecords = sensoryRecordIds.map((id) => records.find((record) => record.id === id && record.competitorId === competitor.id && record.submissionType === 'sensory'));
+    if (sensoryRecords.some((record) => !record)) return res.status(400).json({ message: 'One or more selected sensory scores are invalid.' });
+    const technicalRecord = records.find((record) => record.id === technicalRecordId && record.competitorId === competitor.id && record.submissionType === 'technical');
+    if (!technicalRecord) return res.status(400).json({ message: 'Select a valid technical score.' });
+    const seconds = withinTime ? 0 : Math.max(0, Number(overtimeSeconds));
+    if (!Number.isFinite(seconds)) return res.status(400).json({ message: 'Enter valid overtime seconds.' });
+    const overtimePenalty = Math.min(60, seconds);
+    const sensoryTotals = sensoryRecords.map((record) => record.total);
+    const transferredTotal = technicalRecord.total + sensoryTotals.reduce((sum, total) => sum + total, 0);
+    const total = transferredTotal - overtimePenalty;
+    const safeObservations = observations && typeof observations === 'object'
+      ? Object.fromEntries(Object.entries(observations).map(([key, value]) => [key, String(value ?? '').trim().slice(0, 2000)]))
+      : {};
+    const record = {
+      id: crypto.randomUUID(), submissionType: 'head-judge', competitorId: competitor.id,
+      competitorName: competitor.name, judgeName: judgeName.trim(), date,
+      round: round?.trim() || '', sensoryRecordIds, sensoryTotals,
+      technicalRecordId, technicalTotal: technicalRecord.total,
+      withinTime: Boolean(withinTime), overtimeSeconds: seconds, overtimePenalty,
+      transferredTotal, total, maximum: maximumByRole.sensory * 4 + maximumByRole.technical,
+      percentage: Number(((total / (maximumByRole.sensory * 4 + maximumByRole.technical)) * 100).toFixed(1)),
+      observations: safeObservations, createdAt: new Date().toISOString(),
+    };
+    const formspreeResponse = await fetch(formspreeEndpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        _subject: `Mezani head judge score - ${competitor.name} - ${record.judgeName}`,
+        submissionType: 'Head judge score', competition: 'The Best of Mezani - Barista Competition',
+        competitorNumber: competitor.id, competitor: competitor.name, headJudge: record.judgeName,
+        date: record.date, round: record.round || 'Unspecified session',
+        sensoryScores: sensoryRecords.map((item, index) => ({ position: `S${index + 1}`, judge: item.judgeName, total: item.total, recordId: item.id })),
+        technicalScore: { judge: technicalRecord.judgeName, total: technicalRecord.total, recordId: technicalRecord.id },
+        withinTime: record.withinTime, overtimeSeconds: seconds, overtimePenalty,
+        transferredTotal, finalScore: total, maximum: record.maximum, percentage: record.percentage,
+        headJudgeObservations: safeObservations, submittedAt: record.createdAt,
+      }),
+    });
+    if (!formspreeResponse.ok) return res.status(502).json({ message: 'Formspree could not store this head judge score. Please try again.' });
+    await saveRecord(record);
+    res.status(201).json(record);
+  } catch (error) { next(error); }
+});
+
 app.get('/api/results', requireRole('admin'), async (_req, res, next) => {
   try {
     const records = await readScores();
     const sensory = latestByCompetitor(records, 'sensory');
     const technical = latestByCompetitor(records, 'technical');
+    const headJudge = latestByCompetitor(records, 'head-judge');
     const results = competitors.map((competitor) => {
       const sensoryRecord = sensory.get(competitor.id);
       const technicalRecord = technical.get(competitor.id);
+      const headJudgeRecord = headJudge.get(competitor.id);
       const ready = Boolean(sensoryRecord && technicalRecord);
       const total = ready ? sensoryRecord.total + technicalRecord.total : null;
       return {
@@ -286,6 +358,9 @@ app.get('/api/results', requireRole('admin'), async (_req, res, next) => {
         percentage: ready ? Number(((total / combinedMaximum) * 100).toFixed(1)) : null,
         sensorySubmittedAt: sensoryRecord?.createdAt ?? null,
         technicalSubmittedAt: technicalRecord?.createdAt ?? null,
+        headJudgeScore: headJudgeRecord?.total ?? null,
+        headJudgeMaximum: headJudgeRecord?.maximum ?? null,
+        headJudgeSubmittedAt: headJudgeRecord?.createdAt ?? null,
       };
     }).sort((a, b) => (b.total ?? -1) - (a.total ?? -1));
     res.json({ maximum: combinedMaximum, results });

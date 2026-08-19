@@ -4,7 +4,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: radial-gradient(circle at 20% 20%, #faf8f1 0, #f1efe8 45%); }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
 button:hover:not(:disabled) { transform: translateY(-1px); }
 .app-shell { min-height: 100vh; }
@@ -67,6 +67,12 @@ main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .competitor-submit { display: grid; grid-template-columns: auto minmax(180px, 280px); align-items: center; gap: 14px; padding: 16px; background: white; }
 .competitor-submit > div:first-child { display: grid; gap: 2px; }.competitor-submit span { color: #6c776f; font-size: 11px; font-weight: 700; }.competitor-submit strong { color: #123c2b; font: 800 22px 'Manrope'; }
 .competitor-submit .inline-notice { grid-column: 1 / -1; }
+.head-notes { padding: 14px; }.head-notes textarea { resize: vertical; }
+.head-review-table { overflow-x: auto; padding: 10px 14px 16px; }.head-review-table table { min-width: 620px; border: 1px solid #dedbd0; }.head-review-table th:first-child, .head-review-table td:first-child { width: 48%; text-align: left; }
+.head-transfer { display: grid; gap: 16px; padding: 18px; background: white; }.head-transfer h4 { margin: 0; font: 800 16px 'Manrope'; }
+.head-select-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; }
+.time-grid { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 12px; }
+.head-equation { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 9px; background: #f0efe9; }.head-equation span { padding: 7px 9px; border-radius: 7px; background: white; color: #5f6a63; font-size: 12px; }.head-equation strong { margin-left: auto; color: #123c2b; font: 800 18px 'Manrope'; }
 .status-pill { display: inline-block; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }.status-pill.ready { color: #155d3a; background: #dcefe4; }.status-pill.waiting { color: #856515; background: #f5ebc9; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: -24px 0 14px; position: relative; z-index: 2; }
 .stat { background: white; border: 1px solid #e0ddd2; border-radius: 12px; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 30px rgba(28,49,40,.07); }
@@ -80,8 +86,8 @@ main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .section-heading p { margin: 0; color: #748078; font-size: 13px; }.section-number { color: #b58c28; font: 800 11px 'Manrope'; border: 1px solid #d9c27e; border-radius: 50%; width: 29px; height: 29px; display: grid; place-items: center; }
 .meta-grid { display: grid; grid-template-columns: 1.7fr 1.7fr 1fr 1.2fr .9fr .9fr; gap: 14px; }
 label { color: #536158; font-size: 12px; font-weight: 700; }
-input, textarea { width: 100%; border: 1px solid #d9d8d0; border-radius: 8px; background: #fbfbf8; color: #173126; padding: 11px 12px; margin-top: 7px; outline: none; transition: .2s; }
-input:focus, textarea:focus { border-color: #b99539; box-shadow: 0 0 0 3px rgba(185,149,57,.12); background: white; }
+input, textarea, select { width: 100%; border: 1px solid #d9d8d0; border-radius: 8px; background: #fbfbf8; color: #173126; padding: 11px 12px; margin-top: 7px; outline: none; transition: .2s; }
+input:focus, textarea:focus, select:focus { border-color: #b99539; box-shadow: 0 0 0 3px rgba(185,149,57,.12); background: white; }
 .scores-heading { border-top: 1px solid #eceae2; padding-top: 28px; margin-top: 30px; }
 .table-wrap { overflow-x: auto; border: 1px solid #dedbd0; border-radius: 10px; }
 table { width: 100%; border-collapse: collapse; min-width: 920px; }
@@ -131,6 +137,8 @@ footer { text-align: center; color: #758079; font-size: 12px; padding: 10px 20px
   .technical-measurement-grid { grid-template-columns: 1fr 1fr; }
   .weighted-input { grid-template-columns: 66px 28px; }.weighted-input input { width: 66px; }
   .competitor-submit { grid-template-columns: 1fr; }.competitor-submit .criteria-submit { min-height: 50px; }
+  .head-select-grid, .time-grid { grid-template-columns: 1fr; }
+  .head-equation { align-items: stretch; flex-direction: column; }.head-equation strong { margin-left: 0; }
 }
 @media print {
   @page { size: A4 landscape; margin: 8mm; }

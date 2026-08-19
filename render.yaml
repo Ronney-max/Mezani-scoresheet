@@ -23,6 +23,8 @@ services:
         sync: false
       - key: TECHNICAL_ACCESS_CODE
         sync: false
+      - key: HEAD_JUDGE_ACCESS_CODE
+        sync: false
       - key: ADMIN_ACCESS_CODE
         sync: false
       - key: AUTH_SECRET

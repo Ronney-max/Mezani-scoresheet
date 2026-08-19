@@ -72,6 +72,7 @@ const technicalFields = technicalGroups.flatMap((group) => group.fields);
 const roleConfig = {
   sensory: { title: 'Sensory Judge', maximum: 166, fields: sensoryFields, groups: sensoryGroups },
   technical: { title: 'Technical Judge', maximum: 71, fields: technicalFields, groups: technicalGroups },
+  head: { title: 'Head Judge' },
   admin: { title: 'Overall Results' },
 };
 const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -185,24 +186,86 @@ function JudgePage({ role, onLogout }) {
   </main><footer>Official competition scoring system · Excellence in every cup</footer></div>;
 }
 
+function HeadJudgePage({ onLogout }) {
+  const [competitors, setCompetitors] = useState([]);
+  const [sensoryRecords, setSensoryRecords] = useState([]);
+  const [technicalRecords, setTechnicalRecords] = useState([]);
+  const [forms, setForms] = useState({});
+  const [meta, setMeta] = useState({ judgeName: '', date: new Date().toISOString().slice(0, 10), round: '' });
+  const [busy, setBusy] = useState(null);
+  const [status, setStatus] = useState({});
+  const emptyHeadForm = () => ({ sensoryRecordIds: ['', '', '', ''], technicalRecordId: '', withinTime: true, overtimeSeconds: '', observations: { representing: '', stationStart: '', coffeeInformation: '', espressoShot1Time: '', espressoShot1Waste: '', espressoShot2Time: '', espressoShot2Waste: '', milkShot1Time: '', milkShot1Waste: '', milkShot2Time: '', milkShot2Waste: '', milkQuantity: '', signatureShot1Time: '', signatureShot1Waste: '', signatureShot2Time: '', signatureShot2Waste: '', ingredientsVerified: '', stationManagement: '', totalTime: '' } });
+
+  useEffect(() => {
+    Promise.all([
+      apiRequest('/api/head-judge/competitors', {}, 'head'),
+      apiRequest('/api/judging/sensory/submissions', {}, 'head'),
+      apiRequest('/api/judging/technical/submissions', {}, 'head'),
+    ]).then(([people, sensory, technical]) => {
+      setCompetitors(people); setSensoryRecords(sensory); setTechnicalRecords(technical);
+      setForms(Object.fromEntries(people.map((person) => [person.id, emptyHeadForm()])));
+    }).catch((error) => error.status === 401 ? onLogout() : setStatus({ type: 'error', message: error.message }));
+  }, []);
+
+  function updateForm(id, updater) { setForms((current) => ({ ...current, [id]: updater(current[id] || emptyHeadForm()) })); }
+  function setSensorySelection(id, index, value) { updateForm(id, (form) => ({ ...form, sensoryRecordIds: form.sensoryRecordIds.map((item, position) => position === index ? value : item) })); }
+  function setObservation(id, key, value) { updateForm(id, (form) => ({ ...form, observations: { ...form.observations, [key]: value } })); }
+  function recordsFor(personId, records) { return records.filter((record) => record.competitorId === personId); }
+  function selectedSensory(form) { return form.sensoryRecordIds.map((id) => sensoryRecords.find((record) => record.id === id)).filter(Boolean); }
+  function headTotal(form) {
+    const sensoryTotal = selectedSensory(form).reduce((sum, record) => sum + record.total, 0);
+    const technical = technicalRecords.find((record) => record.id === form.technicalRecordId)?.total || 0;
+    const penalty = form.withinTime ? 0 : Math.min(60, Math.max(0, Number(form.overtimeSeconds) || 0));
+    return { sensoryTotal, technical, penalty, total: sensoryTotal + technical - penalty };
+  }
+  async function submitHead(person) {
+    const form = forms[person.id];
+    if (!meta.judgeName.trim()) return setStatus({ type: 'error', key: person.id, message: 'Enter the head judge name.' });
+    setBusy(person.id); setStatus({});
+    try {
+      const result = await apiRequest(`/api/head-judge/competitors/${person.id}`, { method: 'POST', body: JSON.stringify({ ...meta, ...form }) }, 'head');
+      setStatus({ type: 'success', key: person.id, message: `${person.name}'s official head judge score was submitted: ${result.total} / ${result.maximum}.` });
+    } catch (error) { error.status === 401 ? onLogout() : setStatus({ type: 'error', key: person.id, message: error.message }); }
+    finally { setBusy(null); }
+  }
+
+  return <div className="app-shell"><Header subtitle="Head Judge" /><main>
+    <div className="role-bar no-print"><div><strong>Head judge workspace</strong><span>Authorized access to sensory and technical submissions.</span></div><button className="button ghost" onClick={onLogout}>Sign out</button></div>
+    <section className="score-card"><div className="section-heading"><div><span className="section-number">HJ</span><h2>Head judge & session</h2></div></div><div className="meta-grid judge-meta"><label>Head judge<input value={meta.judgeName} onChange={(event) => setMeta({ ...meta, judgeName: event.target.value })} /></label><label>Date<input type="date" value={meta.date} onChange={(event) => setMeta({ ...meta, date: event.target.value })} /></label><label>Round<input value={meta.round} onChange={(event) => setMeta({ ...meta, round: event.target.value })} placeholder="Semi-Final or Final" /></label></div>
+      <div className="section-heading scores-heading"><div><span className="section-number">01</span><h2>Competitor head judge forms</h2></div></div>
+      <div className="judge-grid template-judge-grid">{competitors.map((person) => { const form = forms[person.id] || emptyHeadForm(); const availableSensory = recordsFor(person.id, sensoryRecords); const availableTechnical = recordsFor(person.id, technicalRecords); const selected = selectedSensory(form); const totals = headTotal(form); return <details className="competitor-card competitor-dropdown" key={person.id}><summary className="competitor-heading"><span className="number-badge">{String(person.id).padStart(2, '0')}</span><div><h3>{person.name}</h3><span>{selected.length}/4 sensory · {form.technicalRecordId ? 'Technical selected' : 'Technical pending'} · Total {totals.total}</span></div><span className="dropdown-indicator">+</span></summary>
+        <div className="sensory-introduction single-field"><label>Representing<input value={form.observations.representing} onChange={(event) => setObservation(person.id, 'representing', event.target.value)} /></label></div>
+        <div className="sensory-sheet"><section className="sensory-part"><div className="sensory-part-heading"><strong>Part I - Station Evaluation at Start-Up</strong></div><div className="head-notes"><label>Station evaluation<textarea rows="3" value={form.observations.stationStart} onChange={(event) => setObservation(person.id, 'stationStart', event.target.value)} /></label></div></section>
+          <section className="sensory-part"><div className="sensory-part-heading"><strong>Part II - Coffee Information, Presentation, Customer Service Skills</strong></div><div className="head-notes"><label>Coffee information and presentation<textarea rows="4" value={form.observations.coffeeInformation} onChange={(event) => setObservation(person.id, 'coffeeInformation', event.target.value)} /></label></div></section>
+          {sensoryGroups.slice(0, 3).map((group, groupIndex) => <section className="sensory-part" key={group.key}><div className="sensory-part-heading"><strong>Part {['III', 'IV', 'V'][groupIndex]} - {group.title.replace(/^Part [^-]+ - /, '')}</strong></div><div className="technical-measurement-grid">{(technicalMeasurements[group.key] || []).map((measurement) => <label key={measurement}>{measurementLabels[measurement]}<input value={form.observations[measurement]} onChange={(event) => setObservation(person.id, measurement, event.target.value)} /></label>)}{group.key === 'signature' && <label>Ingredients verified (no alcohol used)<select value={form.observations.ingredientsVerified} onChange={(event) => setObservation(person.id, 'ingredientsVerified', event.target.value)}><option value="">Select</option><option>Yes</option><option>No</option></select></label>}</div><div className="head-review-table"><table><thead><tr><th>Criterion</th>{[0,1,2,3].map((index) => <th key={index}>S{index + 1}</th>)}</tr></thead><tbody>{group.fields.map((field) => <tr key={field.key}><td>{field.label}</td>{[0,1,2,3].map((index) => <td key={index}>{selected[index]?.breakdown?.[field.key] ?? '-'}</td>)}</tr>)}</tbody></table></div></section>)}
+          <section className="sensory-part"><div className="sensory-part-heading"><strong>Part VI - Technical Evaluation, Station Management</strong></div><div className="head-notes"><label>Station Management/Clean Working Area at End<input type="number" min="0" max="6" step="0.1" value={form.observations.stationManagement} onChange={(event) => setObservation(person.id, 'stationManagement', event.target.value)} placeholder="0-6" /></label></div></section>
+        </div>
+        <div className="head-transfer"><h4>Transferred scores</h4><div className="head-select-grid">{[0,1,2,3].map((index) => <label key={index}>S{index + 1} sensory<select value={form.sensoryRecordIds[index]} onChange={(event) => setSensorySelection(person.id, index, event.target.value)}><option value="">Select sensory judge</option>{availableSensory.map((record) => <option key={record.id} value={record.id}>{record.judgeName} - {record.total}/166</option>)}</select></label>)}<label>Head/technical score<select value={form.technicalRecordId} onChange={(event) => updateForm(person.id, (current) => ({ ...current, technicalRecordId: event.target.value }))}><option value="">Select technical score</option>{availableTechnical.map((record) => <option key={record.id} value={record.id}>{record.judgeName} - {record.total}/71</option>)}</select></label></div><div className="time-grid"><label>Total time<input value={form.observations.totalTime} onChange={(event) => setObservation(person.id, 'totalTime', event.target.value)} placeholder="mm:ss" /></label><label>Within 15 minutes?<select value={form.withinTime ? 'yes' : 'no'} onChange={(event) => updateForm(person.id, (current) => ({ ...current, withinTime: event.target.value === 'yes' }))}><option value="yes">Yes</option><option value="no">No</option></select></label>{!form.withinTime && <label>Seconds overtime<input type="number" min="0" value={form.overtimeSeconds} onChange={(event) => updateForm(person.id, (current) => ({ ...current, overtimeSeconds: event.target.value }))} /></label>}</div><div className="head-equation"><span>HJ {totals.technical}</span><span>+ S1-S4 {totals.sensoryTotal}</span><span>- Overtime {totals.penalty}</span><strong>Total {totals.total} / 735</strong></div><button type="button" className="criteria-submit" disabled={busy === person.id} onClick={() => submitHead(person)}>{busy === person.id ? 'Submitting...' : 'Submit head judge score'}</button>{status.key === person.id && <div className={`notice inline-notice ${status.type}`}>{status.message}</div>}</div>
+      </details>; })}</div>
+    </section>
+  </main><footer>Official competition scoring system · Excellence in every cup</footer></div>;
+}
+
 function ResultsPage({ onLogout }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => { apiRequest('/api/results', {}, 'admin').then(setData).catch((requestError) => requestError.status === 401 ? onLogout() : setError(requestError.message)); }, []);
   const ready = useMemo(() => data?.results.filter((result) => result.ready).length || 0, [data]);
-  return <div className="app-shell"><Header subtitle="Overall Results" /><main><div className="role-bar no-print"><div><strong>Administrator results area</strong><span>Sensory and technical marks meet only in this final table.</span></div><button className="button ghost" onClick={onLogout}>Sign out</button></div>{error && <div className="notice error">{error}</div>}{data && <><section className="stat-grid no-print"><div className="stat"><span>Complete results</span><strong>{ready}/19</strong></div><div className="stat"><span>Combined maximum</span><strong>{data.maximum}</strong></div></section><section className="score-card"><div className="section-heading"><div><span className="section-number">Final</span><h2>Overall competition scores</h2></div></div><div className="table-wrap"><table><thead><tr><th>Rank</th><th>Competitor</th><th>Sensory / 166</th><th>Technical / 71</th><th>Total / 237</th><th>Percentage</th><th>Status</th></tr></thead><tbody>{data.results.map((result, index) => <tr key={result.id}><td>{result.ready ? index + 1 : '-'}</td><td><strong>{result.name}</strong></td><td>{result.sensoryTotal ?? '-'}</td><td>{result.technicalTotal ?? '-'}</td><td className="calculated">{result.total ?? '-'}</td><td>{result.percentage == null ? '-' : `${result.percentage}%`}</td><td><span className={`status-pill ${result.ready ? 'ready' : 'waiting'}`}>{result.ready ? 'Complete' : 'Waiting'}</span></td></tr>)}</tbody></table></div></section></>}</main></div>;
+  return <div className="app-shell"><Header subtitle="Overall Results" /><main><div className="role-bar no-print"><div><strong>Administrator results area</strong><span>Sensory, technical, and head judge records meet only in this final table.</span></div><button className="button ghost" onClick={onLogout}>Sign out</button></div>{error && <div className="notice error">{error}</div>}{data && <><section className="stat-grid no-print"><div className="stat"><span>Complete results</span><strong>{ready}/19</strong></div><div className="stat"><span>Combined maximum</span><strong>{data.maximum}</strong></div></section><section className="score-card"><div className="section-heading"><div><span className="section-number">Final</span><h2>Overall competition scores</h2></div></div><div className="table-wrap"><table><thead><tr><th>Rank</th><th>Competitor</th><th>Sensory / 166</th><th>Technical / 71</th><th>Total / 237</th><th>Percentage</th><th>Head Judge Final / 735</th><th>Status</th></tr></thead><tbody>{data.results.map((result, index) => <tr key={result.id}><td>{result.ready ? index + 1 : '-'}</td><td><strong>{result.name}</strong></td><td>{result.sensoryTotal ?? '-'}</td><td>{result.technicalTotal ?? '-'}</td><td className="calculated">{result.total ?? '-'}</td><td>{result.percentage == null ? '-' : `${result.percentage}%`}</td><td>{result.headJudgeScore == null ? 'Pending' : `${result.headJudgeScore} / ${result.headJudgeMaximum}`}</td><td><span className={`status-pill ${result.ready ? 'ready' : 'waiting'}`}>{result.ready ? 'Complete' : 'Waiting'}</span></td></tr>)}</tbody></table></div></section></>}</main></div>;
 }
 
 function Landing() {
-  return <div className="app-shell"><Header /><main className="portal-main"><section className="portal-card"><span className="section-number">Secure judging portal</span><h2>Select your assigned area</h2><p>Each area requires its own access code. Judges cannot see the other discipline.</p><div className="portal-grid"><a href="/sensory"><strong>Sensory judge</strong><span>Enter sensory scores only</span></a><a href="/technical"><strong>Technical judge</strong><span>Enter technical scores only</span></a><a href="/results"><strong>Overall results</strong><span>Administrator access only</span></a></div></section></main></div>;
+  return <div className="app-shell"><Header /><main className="portal-main"><section className="portal-card"><span className="section-number">Secure judging portal</span><h2>Select your assigned area</h2><p>Each area requires its own access code. Judges cannot see the other discipline.</p><div className="portal-grid"><a href="/sensory"><strong>Sensory judge</strong><span>Enter sensory scores only</span></a><a href="/technical"><strong>Technical judge</strong><span>Enter technical scores only</span></a><a href="/head-judge"><strong>Head judge</strong><span>Review sensory and technical scores</span></a><a href="/results"><strong>Overall results</strong><span>Administrator access only</span></a></div></section></main></div>;
 }
 
 export default function App() {
   const route = window.location.pathname.replace(/^\/+|\/+$/g, '') || 'home';
-  const role = route === 'results' ? 'admin' : route;
+  const role = route === 'results' ? 'admin' : route === 'head-judge' ? 'head' : route;
   const [authenticated, setAuthenticated] = useState(Boolean(roleConfig[role] && tokenFor(role)));
   function logout() { sessionStorage.removeItem(`mezani-${role}-token`); setAuthenticated(false); }
   if (!roleConfig[role]) return <Landing />;
   if (!authenticated) return <Login role={role} onLogin={() => setAuthenticated(true)} />;
-  return role === 'admin' ? <ResultsPage onLogout={logout} /> : <JudgePage role={role} onLogout={logout} />;
+  if (role === 'admin') return <ResultsPage onLogout={logout} />;
+  if (role === 'head') return <HeadJudgePage onLogout={logout} />;
+  return <JudgePage role={role} onLogout={logout} />;
 }
