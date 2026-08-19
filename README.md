@@ -47,12 +47,27 @@ For Render, create a Blueprint using `backend/render.yaml`. Set
 The React frontend calls these independent backend routes:
 
 - `GET /api/health`
-- `GET /api/competitors`
-- `GET /api/scores`
-- `POST /api/scores/competitor/:competitorId/sensory`
-- `POST /api/scores/competitor/:competitorId/technical`
+- `POST /api/auth/login`
+- `GET /api/judging/:role/competitors`
+- `GET /api/judging/:role/submissions`
+- `POST /api/judging/:role/competitors/:competitorId`
+- `GET /api/results` (administrator only)
 
 Sensory and technical judges submit independently. Every accepted submission is
 sent to the configured Formspree endpoint and stored by the backend. Render's
 persistent disk is mounted at `/var/data`; local data is stored in
 `backend/data/scores.json`.
+
+## Separated judging access
+
+The deployed site has three protected routes:
+
+- `/sensory` accepts only a sensory access code and can call only sensory APIs.
+- `/technical` accepts only a technical access code and can call only technical APIs.
+- `/results` accepts only the administrator code and combines the latest sensory
+  and technical record for each competitor into the overall score out of 237.
+
+Set `SENSORY_ACCESS_CODE`, `TECHNICAL_ACCESS_CODE`, and `ADMIN_ACCESS_CODE` to
+different private values in Render. `AUTH_SECRET` signs the 12-hour role tokens
+and is generated automatically by the Render Blueprint. Never place these values
+in Netlify or in the React source.

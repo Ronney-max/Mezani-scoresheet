@@ -16,6 +16,14 @@ services:
         value: /var/data/mezani
       - key: FORMSPREE_ENDPOINT
         value: https://formspree.io/f/myegyagd
+      - key: SENSORY_ACCESS_CODE
+        sync: false
+      - key: TECHNICAL_ACCESS_CODE
+        sync: false
+      - key: ADMIN_ACCESS_CODE
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
     disk:
       name: scoresheet-data
       mountPath: /var/data
