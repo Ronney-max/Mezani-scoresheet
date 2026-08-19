@@ -55,8 +55,8 @@ The React frontend calls these independent backend routes:
 - `GET /api/results` (administrator only)
 
 Sensory and technical judges submit independently. Every accepted submission is
-sent to the configured Formspree endpoint and stored by the backend. Render's
-persistent disk is mounted at `/var/data`; local data is stored in
+sent to the configured Formspree endpoint and stored by the backend. Render uses
+a free Postgres database through `DATABASE_URL`; local development falls back to
 `backend/data/scores.json`.
 
 ## Separated judging access

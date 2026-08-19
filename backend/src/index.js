@@ -4,12 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import cors from 'cors';
+import pg from 'pg';
 
 const app = express();
 const port = process.env.PORT || 4000;
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.DATA_DIR || path.join(root, 'data');
 const scoresFile = path.join(dataDir, 'scores.json');
+const database = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : null;
 const formspreeEndpoint = process.env.FORMSPREE_ENDPOINT || 'https://formspree.io/f/myegyagd';
 const frontendOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean);
@@ -67,15 +69,42 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 
 async function readScores() {
+  if (database) {
+    await ensureDatabase();
+    const result = await database.query('SELECT record FROM score_records ORDER BY created_at DESC');
+    return result.rows.map((row) => row.record);
+  }
   try { return JSON.parse(await fs.readFile(scoresFile, 'utf8')); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
 async function saveRecord(record) {
+  if (database) {
+    await ensureDatabase();
+    await database.query(
+      'INSERT INTO score_records (id, record, created_at) VALUES ($1, $2::jsonb, $3)',
+      [record.id, JSON.stringify(record), record.createdAt],
+    );
+    return;
+  }
   const scores = await readScores();
   scores.unshift(record);
   await fs.mkdir(dataDir, { recursive: true });
   await fs.writeFile(scoresFile, JSON.stringify(scores, null, 2));
+}
+
+let databaseReady;
+function ensureDatabase() {
+  if (!databaseReady) {
+    databaseReady = database.query(`
+      CREATE TABLE IF NOT EXISTS score_records (
+        id text PRIMARY KEY,
+        record jsonb NOT NULL,
+        created_at timestamptz NOT NULL
+      )
+    `);
+  }
+  return databaseReady;
 }
 
 function safeEqual(left, right) {
