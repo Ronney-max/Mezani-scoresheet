@@ -38,7 +38,8 @@ npm run dev
 The backend runs at `http://localhost:4000`. It owns competitor data, validation,
 score persistence, and Formspree submission. It never builds or serves React.
 
-For Render, create a Blueprint using `backend/render.yaml`. Set
+For Render, create a Blueprint using the root `render.yaml`. It explicitly sets
+`rootDir: backend` for the separated Node application. Set
 `FRONTEND_ORIGIN` to the exact Netlify origin, for example
 `https://your-site.netlify.app`. Multiple allowed origins can be comma-separated.
 
