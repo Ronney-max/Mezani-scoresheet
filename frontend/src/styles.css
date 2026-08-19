@@ -42,6 +42,12 @@ main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .sensory-judge-grid { grid-template-columns: 1fr; }
 .competitor-card { overflow: hidden; border: 1px solid #dedacf; border-radius: 14px; background: #fbfaf6; }
 .competitor-heading { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid #e6e2d8; }
+.competitor-dropdown > summary { list-style: none; cursor: pointer; user-select: none; background: white; }
+.competitor-dropdown > summary::-webkit-details-marker { display: none; }
+.competitor-dropdown:not([open]) > summary { border-bottom: 0; }
+.competitor-dropdown > summary:hover { background: #f8f6ef; }
+.dropdown-indicator { display: grid; place-items: center; width: 30px; height: 30px; margin-left: auto; flex: 0 0 auto; border-radius: 50%; color: #8b6b1e !important; background: #f1e8cd; font-size: 20px !important; font-weight: 800; transition: transform .2s ease; }
+.competitor-dropdown[open] .dropdown-indicator { transform: rotate(45deg); }
 .competitor-heading > div { display: grid; gap: 3px; }.competitor-heading h3 { margin: 0; font: 700 16px 'Manrope'; }.competitor-heading span { color: #6e786f; font-size: 12px; }
 .open-breakdown { display: grid; position: static; min-width: 0; width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 .sensory-introduction { display: grid; grid-template-columns: minmax(180px, .7fr) 1.3fr; gap: 14px; padding: 16px; border-bottom: 1px solid #e2ded3; background: white; }
