@@ -39,10 +39,25 @@ main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .role-bar > div { display: grid; gap: 3px; }.role-bar strong { color: #123c2b; }.role-bar span { color: #718078; font-size: 12px; }
 .judge-meta { grid-template-columns: 1.4fr 1fr 1.2fr; }
 .judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sensory-judge-grid { grid-template-columns: 1fr; }
 .competitor-card { overflow: hidden; border: 1px solid #dedacf; border-radius: 14px; background: #fbfaf6; }
 .competitor-heading { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid #e6e2d8; }
 .competitor-heading > div { display: grid; gap: 3px; }.competitor-heading h3 { margin: 0; font: 700 16px 'Manrope'; }.competitor-heading span { color: #6e786f; font-size: 12px; }
 .open-breakdown { display: grid; position: static; min-width: 0; width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+.sensory-introduction { display: grid; grid-template-columns: minmax(180px, .7fr) 1.3fr; gap: 14px; padding: 16px; border-bottom: 1px solid #e2ded3; background: white; }
+.sensory-introduction textarea, .sensory-observation-grid textarea { resize: vertical; min-height: 62px; }
+.sensory-sheet { display: grid; }
+.sensory-part { background: #fffdf8; border-bottom: 1px solid #d9d5ca; }
+.sensory-part-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 14px; color: #173126; background: #dddeda; border-bottom: 1px solid #173126; }
+.sensory-part-heading strong { font: 800 13px 'Manrope'; }.sensory-part-heading span { font-size: 12px; font-weight: 800; }
+.sensory-observation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 12px 14px 4px; }
+.sensory-part .open-breakdown { padding: 12px 14px 14px; background: transparent; }
+.weighted-input { display: grid; grid-template-columns: 80px 34px; align-items: center; gap: 6px; }
+.weighted-input b { color: #9a7621; font-size: 12px; }.weighted-input input { width: 80px; }
+.evaluation-scales { display: grid; gap: 4px; padding: 14px 16px; color: #5f6a63; background: #f0efe9; border-top: 1px solid #d8d5ca; font-size: 10px; line-height: 1.45; }.evaluation-scales strong { color: #173126; }
+.competitor-submit { display: grid; grid-template-columns: auto minmax(180px, 280px); align-items: center; gap: 14px; padding: 16px; background: white; }
+.competitor-submit > div:first-child { display: grid; gap: 2px; }.competitor-submit span { color: #6c776f; font-size: 11px; font-weight: 700; }.competitor-submit strong { color: #123c2b; font: 800 22px 'Manrope'; }
+.competitor-submit .inline-notice { grid-column: 1 / -1; }
 .status-pill { display: inline-block; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }.status-pill.ready { color: #155d3a; background: #dcefe4; }.status-pill.waiting { color: #856515; background: #f5ebc9; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: -24px 0 14px; position: relative; z-index: 2; }
 .stat { background: white; border: 1px solid #e0ddd2; border-radius: 12px; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 30px rgba(28,49,40,.07); }
@@ -103,6 +118,9 @@ footer { text-align: center; color: #758079; font-size: 12px; padding: 10px 20px
   .judge-meta { grid-template-columns: 1fr; }
   .login-main, .portal-main { padding-top: 24px; }
   .open-breakdown label { grid-template-columns: minmax(0, 1fr) 82px; }
+  .sensory-introduction, .sensory-observation-grid { grid-template-columns: 1fr; }
+  .weighted-input { grid-template-columns: 66px 28px; }.weighted-input input { width: 66px; }
+  .competitor-submit { grid-template-columns: 1fr; }.competitor-submit .criteria-submit { min-height: 50px; }
 }
 @media print {
   @page { size: A4 landscape; margin: 8mm; }

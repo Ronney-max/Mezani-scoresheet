@@ -29,23 +29,33 @@ const accessCodes = {
 const authSecret = protectedSetting('AUTH_SECRET', 'local-development-secret-change-on-render');
 
 const sensorySections = [
-  { key: 'espresso', label: 'Espresso Evaluation', max: 49 },
-  { key: 'milk', label: 'Milk Beverage Evaluation', max: 33 },
-  { key: 'signature', label: 'Signature Beverage Evaluation', max: 42 },
-  { key: 'barista', label: 'Barista Evaluation', max: 30 },
-  { key: 'impression', label: 'Total Impression', max: 12 },
+  { key: 'espressoCrema', label: 'Espresso - Crema', max: 1, multiplier: 1 },
+  { key: 'espressoTasteAccuracy', label: 'Espresso - Accuracy of Taste Descriptors', max: 3, multiplier: 4 },
+  { key: 'espressoTactileAccuracy', label: 'Espresso - Accuracy of Tactile Descriptors', max: 3, multiplier: 2 },
+  { key: 'espressoTasteExperience', label: 'Espresso - Taste Experience', max: 6, multiplier: 3 },
+  { key: 'espressoTactileExperience', label: 'Espresso - Tactile Experience', max: 6, multiplier: 2 },
+  { key: 'milkVisualAppeal', label: 'Milk Beverage - Visual Appeal', max: 3, multiplier: 1 },
+  { key: 'milkTasteAccuracy', label: 'Milk Beverage - Accuracy of Taste Descriptors', max: 3, multiplier: 4 },
+  { key: 'milkTasteExperience', label: 'Milk Beverage - Taste Experience', max: 6, multiplier: 3 },
+  { key: 'signatureTasteAccuracy', label: 'Signature Beverage - Accuracy of Taste Descriptors', max: 3, multiplier: 4 },
+  { key: 'signatureExplained', label: 'Signature Beverage - Well Explained, Introduced, and Prepared', max: 6, multiplier: 2 },
+  { key: 'signatureTasteExperience', label: 'Signature Beverage - Taste Experience', max: 6, multiplier: 3 },
+  { key: 'baristaAttention', label: 'Barista - Attention to Details/All Accessories Available', max: 3, multiplier: 2 },
+  { key: 'baristaPresentation', label: 'Barista - Presentation', max: 6, multiplier: 3 },
+  { key: 'baristaKnowledge', label: 'Barista - Coffee Knowledge/Use of Equipment & Space', max: 3, multiplier: 2 },
+  { key: 'totalImpression', label: "Judge's Total Impression", max: 6, multiplier: 2 },
 ];
 const technicalSections = [
-  { key: 'startUp', label: 'Station Evaluation at Start-Up', max: 6 },
-  { key: 'espresso', label: 'Espresso Evaluation', max: 17 },
-  { key: 'milk', label: 'Milk Beverage Evaluation', max: 22 },
-  { key: 'signature', label: 'Signature Beverage Evaluation', max: 17 },
-  { key: 'final', label: 'Final Technical Evaluation', max: 9 },
+  { key: 'startUp', label: 'Station Evaluation at Start-Up', max: 6, multiplier: 1 },
+  { key: 'espresso', label: 'Espresso Evaluation', max: 17, multiplier: 1 },
+  { key: 'milk', label: 'Milk Beverage Evaluation', max: 22, multiplier: 1 },
+  { key: 'signature', label: 'Signature Beverage Evaluation', max: 17, multiplier: 1 },
+  { key: 'final', label: 'Final Technical Evaluation', max: 9, multiplier: 1 },
 ];
 const sectionsByRole = { sensory: sensorySections, technical: technicalSections };
 const maximumByRole = {
-  sensory: sensorySections.reduce((sum, section) => sum + section.max, 0),
-  technical: technicalSections.reduce((sum, section) => sum + section.max, 0),
+  sensory: sensorySections.reduce((sum, section) => sum + section.max * section.multiplier, 0),
+  technical: technicalSections.reduce((sum, section) => sum + section.max * section.multiplier, 0),
 };
 const combinedMaximum = maximumByRole.sensory + maximumByRole.technical;
 const competitors = [
@@ -190,18 +200,26 @@ app.post('/api/judging/:role/competitors/:competitorId', async (req, res, next) 
   if (!sectionsByRole[role]) return res.status(404).json({ message: 'Judging area not found.' });
   return requireRole(role)(req, res, async () => {
     try {
-      const { judgeName, date, round, scores } = req.body;
+      const { judgeName, date, round, scores, observations } = req.body;
       if (!judgeName?.trim()) return res.status(400).json({ message: `${role === 'sensory' ? 'Sensory' : 'Technical'} judge name is required.` });
       const competitor = competitors.find((person) => person.id === Number(req.params.competitorId));
       if (!competitor) return res.status(404).json({ message: 'Competitor not found.' });
       const sections = sectionsByRole[role];
       const breakdown = normalizeScores(scores, sections);
       if (scoresInvalid(breakdown, sections)) return res.status(400).json({ message: `Complete all ${role} criteria for this competitor.` });
-      const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+      const weightedBreakdown = Object.fromEntries(sections.map((section) => [section.key, {
+        score: breakdown[section.key], multiplier: section.multiplier,
+        points: breakdown[section.key] * section.multiplier,
+      }]));
+      const total = sections.reduce((sum, section) => sum + breakdown[section.key] * section.multiplier, 0);
+      const safeObservations = role === 'sensory' && observations && typeof observations === 'object'
+        ? Object.fromEntries(Object.entries(observations).map(([key, value]) => [key, String(value || '').trim().slice(0, 2000)]))
+        : {};
       const record = {
         id: crypto.randomUUID(), submissionType: role, competitorId: competitor.id,
         competitorName: competitor.name, judgeName: judgeName.trim(), date,
-        round: round?.trim() || '', maximum: maximumByRole[role], breakdown, total,
+        round: round?.trim() || '', maximum: maximumByRole[role], breakdown,
+        weightedBreakdown, observations: safeObservations, total,
         percentage: Number(((total / maximumByRole[role]) * 100).toFixed(1)),
         createdAt: new Date().toISOString(),
       };
@@ -213,7 +231,8 @@ app.post('/api/judging/:role/competitors/:competitorId', async (req, res, next) 
           submissionType: `${title} score`, competition: 'The Best of Mezani - Barista Competition',
           competitorNumber: competitor.id, competitor: competitor.name,
           [`${role}Judge`]: record.judgeName, date: record.date,
-          round: record.round || 'Unspecified session', [`${role}Breakdown`]: breakdown,
+          round: record.round || 'Unspecified session', [`${role}Breakdown`]: weightedBreakdown,
+          ...(role === 'sensory' ? { sensoryObservations: safeObservations } : {}),
           [`${role}Score`]: total, [`${role}Maximum`]: maximumByRole[role],
           percentage: record.percentage, submittedAt: record.createdAt,
         }),

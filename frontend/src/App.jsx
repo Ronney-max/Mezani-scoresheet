@@ -1,22 +1,44 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const sensorySections = [
-  { key: 'espresso', label: 'I. Espresso evaluation', max: 49, guidance: 'Crema; accuracy of taste and tactile descriptors; taste experience; tactile experience.' },
-  { key: 'milk', label: 'II. Milk beverage evaluation', max: 33, guidance: 'Visual appeal; accuracy of taste descriptors; taste experience.' },
-  { key: 'signature', label: 'III. Signature beverage evaluation', max: 42, guidance: 'Accuracy of taste descriptors; explanation, introduction and preparation; taste experience.' },
-  { key: 'barista', label: 'IV. Barista evaluation', max: 30, guidance: 'Attention to detail and accessories; presentation; coffee knowledge and use of equipment and space.' },
-  { key: 'impression', label: 'V. Total impression', max: 12, guidance: "Judge's overall impression of the competitor and presentation." },
+const sensoryGroups = [
+  { key: 'espresso', title: 'Part I - Espresso Evaluation', maximum: 49, fields: [
+    { key: 'espressoCrema', label: 'Crema', max: 1, multiplier: 1, scale: 'Yes = 1, No = 0' },
+    { key: 'espressoTasteAccuracy', label: 'Accuracy of Taste Descriptors', max: 3, multiplier: 4, scale: '0 to 3' },
+    { key: 'espressoTactileAccuracy', label: 'Accuracy of Tactile Descriptors', max: 3, multiplier: 2, scale: '0 to 3' },
+    { key: 'espressoTasteExperience', label: 'Taste Experience', max: 6, multiplier: 3, scale: '0 to 6' },
+    { key: 'espressoTactileExperience', label: 'Tactile Experience', max: 6, multiplier: 2, scale: '0 to 6' },
+  ] },
+  { key: 'milk', title: 'Part II - Milk Beverage Evaluation', maximum: 33, fields: [
+    { key: 'milkVisualAppeal', label: 'Visual Appeal', max: 3, multiplier: 1, scale: '0 to 3' },
+    { key: 'milkTasteAccuracy', label: 'Accuracy of Taste Descriptors', max: 3, multiplier: 4, scale: '0 to 3' },
+    { key: 'milkTasteExperience', label: 'Taste Experience', max: 6, multiplier: 3, scale: '0 to 6' },
+  ] },
+  { key: 'signature', title: 'Part III - Signature Beverage Evaluation', maximum: 42, fields: [
+    { key: 'signatureTasteAccuracy', label: 'Accuracy of Taste Descriptors', max: 3, multiplier: 4, scale: '0 to 3' },
+    { key: 'signatureExplained', label: 'Well Explained, Introduced, and Prepared', max: 6, multiplier: 2, scale: '0 to 6' },
+    { key: 'signatureTasteExperience', label: 'Taste Experience', max: 6, multiplier: 3, scale: '0 to 6' },
+  ] },
+  { key: 'barista', title: 'Part IV - Barista Evaluation', maximum: 30, fields: [
+    { key: 'baristaAttention', label: 'Attention to Details/All Accessories Available', max: 3, multiplier: 2, scale: '0 to 3' },
+    { key: 'baristaPresentation', label: 'Presentation', max: 6, multiplier: 3, scale: '0 to 6' },
+    { key: 'baristaKnowledge', label: 'Coffee Knowledge/Use of Equipment & Space', max: 3, multiplier: 2, scale: '0 to 3' },
+  ] },
+  { key: 'impression', title: "Part V - Judge's Total Impression", maximum: 12, fields: [
+    { key: 'totalImpression', label: 'Total Impression', max: 6, multiplier: 2, scale: '0 to 6' },
+  ] },
 ];
 const technicalSections = [
-  { key: 'startUp', label: 'I. Station at start-up', max: 6, guidance: 'Clean working area at start-up; clean cloths.' },
-  { key: 'espresso', label: 'II. Espresso evaluation', max: 17, guidance: 'Flush group head; clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
-  { key: 'milk', label: 'III. Milk beverage', max: 22, guidance: 'Espresso technical skills plus empty/clean pitcher, steam-wand purge before and after steaming, clean steam wand, and acceptable milk waste.' },
-  { key: 'signature', label: 'IV. Signature beverage', max: 17, guidance: 'Clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
-  { key: 'final', label: 'V. Final technical evaluation', max: 9, guidance: 'Station management; clean working area at end; clean portafilter spouts; general hygiene; proper use of cloths.' },
+  { key: 'startUp', label: 'I. Station at start-up', max: 6, multiplier: 1, guidance: 'Clean working area at start-up; clean cloths.' },
+  { key: 'espresso', label: 'II. Espresso evaluation', max: 17, multiplier: 1, guidance: 'Flush group head; clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
+  { key: 'milk', label: 'III. Milk beverage', max: 22, multiplier: 1, guidance: 'Espresso technical skills plus empty/clean pitcher, steam-wand purge before and after steaming, clean steam wand, and acceptable milk waste.' },
+  { key: 'signature', label: 'IV. Signature beverage', max: 17, multiplier: 1, guidance: 'Clean and dry baskets; acceptable dosing waste; consistent dosing and tamping; clean portafilters; immediate brew; extraction-time consistency.' },
+  { key: 'final', label: 'V. Final technical evaluation', max: 9, multiplier: 1, guidance: 'Station management; clean working area at end; clean portafilter spouts; general hygiene; proper use of cloths.' },
 ];
+const sensoryFields = sensoryGroups.flatMap((group) => group.fields);
+const technicalGroups = technicalSections.map((field) => ({ key: field.key, title: field.label, maximum: field.max, fields: [field] }));
 const roleConfig = {
-  sensory: { title: 'Sensory Judge', maximum: 166, sections: sensorySections },
-  technical: { title: 'Technical Judge', maximum: 71, sections: technicalSections },
+  sensory: { title: 'Sensory Judge', maximum: 166, fields: sensoryFields, groups: sensoryGroups },
+  technical: { title: 'Technical Judge', maximum: 71, fields: technicalSections, groups: technicalGroups },
   admin: { title: 'Overall Results' },
 };
 const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -62,9 +84,11 @@ function Login({ role, onLogin }) {
 
 function JudgePage({ role, onLogout }) {
   const config = roleConfig[role];
-  const emptyScores = () => Object.fromEntries(config.sections.map((section) => [section.key, '']));
+  const emptyScores = () => Object.fromEntries(config.fields.map((field) => [field.key, '']));
+  const emptyObservations = () => ({ representing: '', introduction: '', espressoDescriptors: '', espressoExperience: '', milkDescriptors: '', milkExperience: '', signatureDescriptors: '', signatureExperience: '' });
   const [competitors, setCompetitors] = useState([]);
   const [scores, setScores] = useState({});
+  const [observations, setObservations] = useState({});
   const [submissions, setSubmissions] = useState([]);
   const [meta, setMeta] = useState({ judgeName: '', date: new Date().toISOString().slice(0, 10), round: '' });
   const [status, setStatus] = useState({});
@@ -78,20 +102,25 @@ function JudgePage({ role, onLogout }) {
       setCompetitors(data.competitors);
       setSubmissions(history);
       setScores(Object.fromEntries(data.competitors.map((person) => [person.id, emptyScores()])));
+      setObservations(Object.fromEntries(data.competitors.map((person) => [person.id, emptyObservations()])));
     }).catch((error) => error.status === 401 ? onLogout() : setStatus({ type: 'error', message: error.message }));
   }, [role]);
 
   function updateScore(id, key, value) {
     setScores((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
   }
-  function totalFor(id) { return config.sections.reduce((sum, section) => sum + Number(scores[id]?.[section.key] || 0), 0); }
+  function updateObservation(id, key, value) {
+    setObservations((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
+  }
+  function totalFor(id) { return config.fields.reduce((sum, field) => sum + Number(scores[id]?.[field.key] || 0) * field.multiplier, 0); }
+  function groupTotal(id, group) { return group.fields.reduce((sum, field) => sum + Number(scores[id]?.[field.key] || 0) * field.multiplier, 0); }
   async function submit(person) {
     const key = person.id;
     if (!meta.judgeName.trim()) return setStatus({ type: 'error', key, message: 'Enter your judge name before submitting.' });
-    if (!config.sections.every((section) => scores[key]?.[section.key] !== '')) return setStatus({ type: 'error', key, message: `Complete all ${role} criteria for ${person.name}.` });
+    if (!config.fields.every((field) => scores[key]?.[field.key] !== '')) return setStatus({ type: 'error', key, message: `Complete all ${role} criteria for ${person.name}.` });
     setBusy(key); setStatus({});
     try {
-      const result = await apiRequest(`/api/judging/${role}/competitors/${key}`, { method: 'POST', body: JSON.stringify({ ...meta, scores: scores[key] }) }, role);
+      const result = await apiRequest(`/api/judging/${role}/competitors/${key}`, { method: 'POST', body: JSON.stringify({ ...meta, scores: scores[key], observations: observations[key] }) }, role);
       setSubmissions((current) => [result, ...current]);
       setStatus({ type: 'success', key, message: `${person.name}'s ${role} score was submitted. Your entered marks remain intact.` });
     } catch (error) { error.status === 401 ? onLogout() : setStatus({ type: 'error', key, message: error.message }); }
@@ -102,7 +131,15 @@ function JudgePage({ role, onLogout }) {
     <section className="stat-grid no-print"><div className="stat"><span>Competitors</span><strong>{competitors.length}</strong></div><div className="stat"><span>{config.title} maximum</span><strong>{config.maximum}</strong></div><div className="stat"><span>Your submissions</span><strong>{submissions.length}</strong></div></section>
     <form className="score-card" onSubmit={(event) => event.preventDefault()}><div className="section-heading"><div><span className="section-number">01</span><h2>{config.title} details</h2></div></div><div className="meta-grid judge-meta"><label>Judge name<input value={meta.judgeName} onChange={(event) => setMeta({ ...meta, judgeName: event.target.value })} placeholder="Full name" /></label><label>Date<input type="date" value={meta.date} onChange={(event) => setMeta({ ...meta, date: event.target.value })} /></label><label>Round / session<input value={meta.round} onChange={(event) => setMeta({ ...meta, round: event.target.value })} placeholder="e.g. Preliminary 1" /></label></div>
       <div className="section-heading scores-heading"><div><span className="section-number">02</span><h2>{config.title} scores</h2></div><p>Each competitor submits independently.</p></div>
-      <div className="judge-grid">{competitors.map((person) => { const total = totalFor(person.id); return <article className="competitor-card" key={person.id}><div className="competitor-heading"><span className="number-badge">{String(person.id).padStart(2, '0')}</span><div><h3>{person.name}</h3><span>{total.toFixed(1)} / {config.maximum} · {((total / config.maximum) * 100).toFixed(1)}%</span></div></div><div className="criteria-breakdown open-breakdown">{config.sections.map((section) => <label key={section.key}><span>{section.label}<small>{section.guidance}</small></span><input type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.[section.key] ?? ''} onChange={(event) => updateScore(person.id, section.key, event.target.value)} placeholder={`0-${section.max}`} /></label>)}<button type="button" className="criteria-submit" disabled={busy === person.id} onClick={() => submit(person)}>{busy === person.id ? 'Submitting...' : `Submit ${role} score`}</button>{status.key === person.id && <div className={`notice inline-notice ${status.type}`}>{status.message}</div>}</div></article>; })}</div>
+      <div className={`judge-grid ${role === 'sensory' ? 'sensory-judge-grid' : ''}`}>{competitors.map((person) => { const total = totalFor(person.id); return <article className="competitor-card" key={person.id}><div className="competitor-heading"><span className="number-badge">{String(person.id).padStart(2, '0')}</span><div><h3>{person.name}</h3><span>{total.toFixed(1)} / {config.maximum} · {((total / config.maximum) * 100).toFixed(1)}%</span></div></div>
+        {role === 'sensory' && <div className="sensory-introduction"><label>Representing<input value={observations[person.id]?.representing ?? ''} onChange={(event) => updateObservation(person.id, 'representing', event.target.value)} placeholder="Company or organization" /></label><label>Introduction & Coffee Information<textarea value={observations[person.id]?.introduction ?? ''} onChange={(event) => updateObservation(person.id, 'introduction', event.target.value)} rows="3" /></label></div>}
+        <div className="sensory-sheet">{config.groups.map((group) => <section className="sensory-part" key={group.key}><div className="sensory-part-heading"><strong>{group.title}</strong><span>{groupTotal(person.id, group).toFixed(1)} / {group.maximum}</span></div>
+          {role === 'sensory' && ['espresso', 'milk', 'signature'].includes(group.key) && <div className="sensory-observation-grid"><label>Descriptors<textarea rows="2" value={observations[person.id]?.[`${group.key}Descriptors`] ?? ''} onChange={(event) => updateObservation(person.id, `${group.key}Descriptors`, event.target.value)} /></label><label>Experience<textarea rows="2" value={observations[person.id]?.[`${group.key}Experience`] ?? ''} onChange={(event) => updateObservation(person.id, `${group.key}Experience`, event.target.value)} /></label></div>}
+          <div className="criteria-breakdown open-breakdown">{group.fields.map((field) => <label key={field.key}><span>{field.label}<small>{field.scale || field.guidance}{field.multiplier > 1 ? ` · ${field.multiplier} × multiplier` : ''}</small></span><span className="weighted-input"><input aria-label={`${person.name} ${field.label}`} type="number" min="0" max={field.max} step="0.1" value={scores[person.id]?.[field.key] ?? ''} onChange={(event) => updateScore(person.id, field.key, event.target.value)} placeholder={`0-${field.max}`} /><b>{field.multiplier > 1 ? `× ${field.multiplier}` : ''}</b></span></label>)}</div>
+        </section>)}</div>
+        {role === 'sensory' && <div className="evaluation-scales"><strong>Evaluation Scales</strong><span>Yes = 1 · No = 0</span><span>0 to 6: Unacceptable = 0 · Acceptable = 1 · Average = 2 · Good = 3 · Very Good = 4 · Excellent = 5 · Extraordinary = 6</span><span>0 to 3 Accuracy: None to Evaluate = 0 · Not Very Accurate = 1 · Somewhat Accurate = 2 · Very Accurate = 3</span><span>0 to 3 Impression: None to Evaluate = 0 · Not Very = 1 · Somewhat = 2 · Very = 3</span></div>}
+        <div className="competitor-submit"><div><span>{role === 'sensory' ? 'Sensory Score' : 'Technical Score'}</span><strong>{total.toFixed(1)} / {config.maximum}</strong></div><button type="button" className="criteria-submit" disabled={busy === person.id} onClick={() => submit(person)}>{busy === person.id ? 'Submitting...' : `Submit ${role} score`}</button>{status.key === person.id && <div className={`notice inline-notice ${status.type}`}>{status.message}</div>}</div>
+      </article>; })}</div>
     </form>
     <section className="history no-print"><div className="section-heading"><div><span className="section-number">03</span><h2>Your {role} submissions</h2></div></div>{submissions.length === 0 ? <div className="empty-state"><strong>No submissions yet</strong></div> : <div className="history-list">{submissions.map((record) => <article key={record.id}><div><strong>{record.competitorName}</strong><span>{record.total} / {record.maximum} · {record.percentage}% · {record.date}</span></div></article>)}</div>}</section>
   </main><footer>Official competition scoring system · Excellence in every cup</footer></div>;
