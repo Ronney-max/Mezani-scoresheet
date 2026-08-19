@@ -100,12 +100,12 @@ export default function App() {
     const label = isSensory ? 'Sensory' : 'Technical';
     const submissionKey = `${sectionType}-${person.id}`;
     if (!judgeName.trim()) {
-      setStatus({ type: 'error', message: `Enter the ${label.toLowerCase()} judge name before submitting.` });
+      setStatus({ type: 'error', key: submissionKey, message: `Enter the ${label.toLowerCase()} judge name before submitting.` });
       return;
     }
     const complete = sections.every((section) => sectionScores?.[section.key] !== '');
     if (!complete) {
-      setStatus({ type: 'error', message: `Complete all ${label.toLowerCase()} criteria for ${person.name} before submitting.` });
+      setStatus({ type: 'error', key: submissionKey, message: `Complete all ${label.toLowerCase()} criteria for ${person.name} before submitting.` });
       return;
     }
     setSubmittingKey(submissionKey);
@@ -119,9 +119,9 @@ export default function App() {
       if (!response.ok) throw new Error(result.message);
       setSaved((current) => [result, ...current]);
       setSubmittedSections((current) => new Set([...current, submissionKey]));
-      setStatus({ type: 'success', message: `${person.name}'s ${label.toLowerCase()} score was submitted by ${judgeName}. All entered data remains intact.` });
+      setStatus({ type: 'success', key: submissionKey, message: `${person.name}'s ${label.toLowerCase()} score was submitted by ${judgeName}. All entered data remains intact.` });
     } catch (error) {
-      setStatus({ type: 'error', message: error.message || `Unable to submit ${person.name}'s ${label.toLowerCase()} score.` });
+      setStatus({ type: 'error', key: submissionKey, message: error.message || `Unable to submit ${person.name}'s ${label.toLowerCase()} score.` });
     } finally { setSubmittingKey(null); }
   }
 
@@ -198,6 +198,7 @@ export default function App() {
                           <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.sensory?.[section.key] ?? ''} onChange={(e) => updateSensoryScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
                         </label>)}
                         <button type="button" className={`criteria-submit ${submittedSections.has(`sensory-${person.id}`) ? 'submitted' : ''}`} disabled={submittingKey === `sensory-${person.id}`} onClick={() => submitSection(person, 'sensory')}>{submittingKey === `sensory-${person.id}` ? 'Submitting...' : submittedSections.has(`sensory-${person.id}`) ? 'Submit sensory again' : 'Submit sensory'}</button>
+                        {status.key === `sensory-${person.id}` && <div className={`notice inline-notice ${status.type}`} role="status">{status.message}</div>}
                       </div>
                     </details>
                   </td>
@@ -210,6 +211,7 @@ export default function App() {
                           <input aria-label={`${person.name} ${section.label}`} type="number" min="0" max={section.max} step="0.1" value={scores[person.id]?.technical?.[section.key] ?? ''} onChange={(e) => updateTechnicalScore(person.id, section.key, e.target.value)} placeholder={`0-${section.max}`} required />
                         </label>)}
                         <button type="button" className={`criteria-submit ${submittedSections.has(`technical-${person.id}`) ? 'submitted' : ''}`} disabled={submittingKey === `technical-${person.id}`} onClick={() => submitSection(person, 'technical')}>{submittingKey === `technical-${person.id}` ? 'Submitting...' : submittedSections.has(`technical-${person.id}`) ? 'Submit technical again' : 'Submit technical'}</button>
+                        {status.key === `technical-${person.id}` && <div className={`notice inline-notice ${status.type}`} role="status">{status.message}</div>}
                       </div>
                     </details>
                   </td>
@@ -221,7 +223,7 @@ export default function App() {
           </div>
 
           <div className="table-footer no-print">
-            {status.message && <div className={`notice ${status.type}`} role="status">{status.message}</div>}
+            {status.message && !status.key && <div className={`notice ${status.type}`} role="status">{status.message}</div>}
           </div>
           <div className="actions no-print">
             <button type="button" className="button ghost no-print" onClick={resetForm}>Clear sheet</button>
