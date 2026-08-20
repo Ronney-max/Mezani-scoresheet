@@ -1,15 +1,24 @@
 from pathlib import Path
 
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
-)
+try:
+    from reportlab import rl_config
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+except ModuleNotFoundError as error:
+    if error.name != "reportlab":
+        raise
+    requirements = Path(__file__).with_name("requirements.txt")
+    raise SystemExit(
+        "ReportLab is required to build the scoresheet.\n"
+        f"Install it with: python3 -m pip install -r {requirements}"
+    ) from error
+
+# Keep generated PDF metadata deterministic so repeated builds produce the same file.
+rl_config.invariant = 1
 
 
 ROOT = Path(__file__).resolve().parents[2]
