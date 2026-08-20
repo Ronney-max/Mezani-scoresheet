@@ -9,7 +9,9 @@ try:
     from reportlab.lib.units import mm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 except ModuleNotFoundError as error:
-    if error.name != "reportlab":
+    # Some environments report the missing module as 'reportlab.platypus'
+    # so check the error name and message for 'reportlab' before exiting.
+    if "reportlab" not in (error.name or "") and "reportlab" not in str(error):
         raise
     requirements = Path(__file__).with_name("requirements.txt")
     raise SystemExit(
