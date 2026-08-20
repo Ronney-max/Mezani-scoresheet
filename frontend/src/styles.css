@@ -58,6 +58,7 @@ main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .sensory-part-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 14px; color: #173126; background: #dddeda; border-bottom: 1px solid #173126; }
 .sensory-part-heading strong { font: 800 13px 'Manrope'; }.sensory-part-heading span { font-size: 12px; font-weight: 800; }
 .sensory-observation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 12px 14px 4px; }
+.sensory-observation-grid.optional-comment { grid-template-columns: 1fr; }.optional-comment label > small { margin-left: 5px; color: #8a938d; font-weight: 500; }
 .technical-measurement-grid { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)); gap: 10px; padding: 12px 14px 4px; }
 .technical-measurement-grid input { min-height: 42px; }
 .sensory-part .open-breakdown { padding: 12px 14px 14px; background: transparent; }
