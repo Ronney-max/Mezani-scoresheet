@@ -1,3 +1,4 @@
+// @ts-nocheck - migrated from the production JSX implementation; types will be added incrementally.
 import React, { Component } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';

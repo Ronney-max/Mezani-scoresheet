@@ -1,3 +1,4 @@
+// @ts-nocheck - migrated from the production JSX implementation; types will be added incrementally.
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const sensoryGroups = [
