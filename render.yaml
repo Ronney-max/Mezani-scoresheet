@@ -17,6 +17,10 @@ services:
         fromDatabase:
           name: mezani-scoresheet-db
           property: connectionString
+      - key: DATABASE_POOL_MAX
+        value: 10
+      - key: FORMSPREE_TIMEOUT_MS
+        value: 8000
       - key: FORMSPREE_ENDPOINT
         value: https://formspree.io/f/myegyagd
       - key: SENSORY_ACCESS_CODE

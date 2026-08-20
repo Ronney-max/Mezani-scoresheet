@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const sensoryGroups = [
   { key: 'espresso', title: 'Part I - Espresso Evaluation', maximum: 49, fields: [
@@ -90,7 +90,15 @@ function tokenFor(role) { return sessionStorage.getItem(`mezani-${role}-token`) 
 async function apiRequest(path, options = {}, role) {
   const headers = { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers };
   if (role && tokenFor(role)) headers.Authorization = `Bearer ${tokenFor(role)}`;
-  const response = await fetch(apiUrl(path), { cache: 'no-store', ...options, headers });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.method === 'POST' ? 20_000 : 15_000);
+  let response;
+  try {
+    response = await fetch(apiUrl(path), { cache: 'no-store', ...options, headers, signal: options.signal || controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('The server is taking too long. Your marks are still on this screen; press submit again to safely retry.');
+    throw new Error('The server could not be reached. Your marks are still on this screen; check your connection and safely retry.');
+  } finally { clearTimeout(timeout); }
   const result = response.status === 204 ? null : await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(result?.message || `Request failed with status ${response.status}`);
@@ -98,6 +106,14 @@ async function apiRequest(path, options = {}, role) {
     throw error;
   }
   return result;
+}
+
+function createSubmissionKey() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function readDraft(key) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
 }
 
 function Login({ role, onLogin }) {
@@ -132,18 +148,28 @@ function JudgePage({ role, onLogout }) {
   const [meta, setMeta] = useState({ judgeName: '', date: new Date().toISOString().slice(0, 10), round: '' });
   const [status, setStatus] = useState({});
   const [busy, setBusy] = useState(null);
+  const submissionKeys = useRef({});
+  const [draftsReady, setDraftsReady] = useState(false);
+  const draftKey = `mezani-${role}-draft`;
 
   useEffect(() => {
     Promise.all([
       apiRequest(`/api/judging/${role}/competitors`, {}, role),
       apiRequest(`/api/judging/${role}/submissions`, {}, role),
     ]).then(([data, history]) => {
+      const draft = readDraft(draftKey);
       setCompetitors(data.competitors);
       setSubmissions(history);
-      setScores(Object.fromEntries(data.competitors.map((person) => [person.id, emptyScores()])));
-      setObservations(Object.fromEntries(data.competitors.map((person) => [person.id, emptyObservations()])));
+      setScores(Object.fromEntries(data.competitors.map((person) => [person.id, { ...emptyScores(), ...draft?.scores?.[person.id] }])));
+      setObservations(Object.fromEntries(data.competitors.map((person) => [person.id, { ...emptyObservations(), ...draft?.observations?.[person.id] }])));
+      if (draft?.meta) setMeta((current) => ({ ...current, ...draft.meta }));
+      setDraftsReady(true);
     }).catch((error) => error.status === 401 ? onLogout() : setStatus({ type: 'error', message: error.message }));
   }, [role]);
+
+  useEffect(() => {
+    if (draftsReady) localStorage.setItem(draftKey, JSON.stringify({ meta, scores, observations, savedAt: new Date().toISOString() }));
+  }, [draftsReady, draftKey, meta, scores, observations]);
 
   function updateScore(id, key, value) {
     setScores((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
@@ -159,9 +185,11 @@ function JudgePage({ role, onLogout }) {
     if (!config.fields.every((field) => scores[key]?.[field.key] !== '')) return setStatus({ type: 'error', key, message: `Complete all ${role} criteria for ${person.name}.` });
     setBusy(key); setStatus({});
     try {
-      const result = await apiRequest(`/api/judging/${role}/competitors/${key}`, { method: 'POST', body: JSON.stringify({ ...meta, scores: scores[key], observations: observations[key] }) }, role);
+      submissionKeys.current[key] ||= createSubmissionKey();
+      const result = await apiRequest(`/api/judging/${role}/competitors/${key}`, { method: 'POST', headers: { 'Idempotency-Key': submissionKeys.current[key] }, body: JSON.stringify({ ...meta, scores: scores[key], observations: observations[key] }) }, role);
+      delete submissionKeys.current[key];
       setSubmissions((current) => [result, ...current]);
-      setStatus({ type: 'success', key, message: `${person.name}'s ${role} score was submitted. Your entered marks remain intact.` });
+      setStatus({ type: 'success', key, message: `${person.name}'s ${role} score is safely saved. Your entered marks remain intact.` });
     } catch (error) { error.status === 401 ? onLogout() : setStatus({ type: 'error', key, message: error.message }); }
     finally { setBusy(null); }
   }
@@ -194,6 +222,9 @@ function HeadJudgePage({ onLogout }) {
   const [meta, setMeta] = useState({ judgeName: '', date: new Date().toISOString().slice(0, 10), round: '' });
   const [busy, setBusy] = useState(null);
   const [status, setStatus] = useState({});
+  const submissionKeys = useRef({});
+  const [draftsReady, setDraftsReady] = useState(false);
+  const draftKey = 'mezani-head-draft';
   const emptyHeadForm = () => ({ sensoryRecordIds: ['', '', '', ''], technicalRecordId: '', withinTime: true, overtimeSeconds: '', observations: { representing: '', stationStart: '', coffeeInformation: '', espressoShot1Time: '', espressoShot1Waste: '', espressoShot2Time: '', espressoShot2Waste: '', milkShot1Time: '', milkShot1Waste: '', milkShot2Time: '', milkShot2Waste: '', milkQuantity: '', signatureShot1Time: '', signatureShot1Waste: '', signatureShot2Time: '', signatureShot2Waste: '', ingredientsVerified: '', stationManagement: '', totalTime: '' } });
 
   useEffect(() => {
@@ -202,10 +233,17 @@ function HeadJudgePage({ onLogout }) {
       apiRequest('/api/judging/sensory/submissions', {}, 'head'),
       apiRequest('/api/judging/technical/submissions', {}, 'head'),
     ]).then(([people, sensory, technical]) => {
+      const draft = readDraft(draftKey);
       setCompetitors(people); setSensoryRecords(sensory); setTechnicalRecords(technical);
-      setForms(Object.fromEntries(people.map((person) => [person.id, emptyHeadForm()])));
+      setForms(Object.fromEntries(people.map((person) => [person.id, { ...emptyHeadForm(), ...draft?.forms?.[person.id], observations: { ...emptyHeadForm().observations, ...draft?.forms?.[person.id]?.observations } }])));
+      if (draft?.meta) setMeta((current) => ({ ...current, ...draft.meta }));
+      setDraftsReady(true);
     }).catch((error) => error.status === 401 ? onLogout() : setStatus({ type: 'error', message: error.message }));
   }, []);
+
+  useEffect(() => {
+    if (draftsReady) localStorage.setItem(draftKey, JSON.stringify({ meta, forms, savedAt: new Date().toISOString() }));
+  }, [draftsReady, meta, forms]);
 
   function updateForm(id, updater) { setForms((current) => ({ ...current, [id]: updater(current[id] || emptyHeadForm()) })); }
   function setSensorySelection(id, index, value) { updateForm(id, (form) => ({ ...form, sensoryRecordIds: form.sensoryRecordIds.map((item, position) => position === index ? value : item) })); }
@@ -223,7 +261,9 @@ function HeadJudgePage({ onLogout }) {
     if (!meta.judgeName.trim()) return setStatus({ type: 'error', key: person.id, message: 'Enter the head judge name.' });
     setBusy(person.id); setStatus({});
     try {
-      const result = await apiRequest(`/api/head-judge/competitors/${person.id}`, { method: 'POST', body: JSON.stringify({ ...meta, ...form }) }, 'head');
+      submissionKeys.current[person.id] ||= createSubmissionKey();
+      const result = await apiRequest(`/api/head-judge/competitors/${person.id}`, { method: 'POST', headers: { 'Idempotency-Key': submissionKeys.current[person.id] }, body: JSON.stringify({ ...meta, ...form }) }, 'head');
+      delete submissionKeys.current[person.id];
       setStatus({ type: 'success', key: person.id, message: `${person.name}'s official head judge score was submitted: ${result.total} / ${result.maximum}.` });
     } catch (error) { error.status === 401 ? onLogout() : setStatus({ type: 'error', key: person.id, message: error.message }); }
     finally { setBusy(null); }
